@@ -34,6 +34,14 @@ prefijo/CODIGO DE LA TASK
 ### Rama principal
 - `main` → Producción
 
+### Flujo de trabajo
+
+1. Crear una nueva rama desde `main`
+2. Trabajar en la rama haciendo commits
+3. Subir la rama al repositorio remoto
+4. Crear un Pull Request para mergear a `main`
+
+> ⚠️ **Importante:** Nunca hacer commits directamente en `main`. Siempre trabajar en una rama separada.
 
 ## Instalación y Configuración
 
