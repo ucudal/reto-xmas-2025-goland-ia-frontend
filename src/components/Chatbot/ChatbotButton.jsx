@@ -1,9 +1,14 @@
-import React from 'react';
+import React, {useState} from 'react';
+import ChatbotModal from './ChatbotModal'
+
 
 export default function ChatbotButton() {
-    return (
+    const [isOpen, setIsOpen]= useState(false);
+
+    return (<>
         <button
             aria-label="Open Chatbot"
+            onClick={()=> setIsOpen(true)}
             className="fixed shadow-2xl bottom-10 right-10 bg-verde hover:bg-green-600 z-50 p-4 rounded-full hover:-translate-y-2 transform transition-all ease-in-out duration-300 flex items-center justify-center cursor-pointer"
         >
             <svg
@@ -26,5 +31,7 @@ export default function ChatbotButton() {
                 <path d="M9 13v2" />
             </svg>
         </button>
+        {isOpen && <ChatbotModal onClose={()=> setIsOpen(false)}/>}
+        </>
     );
 }
