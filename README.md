@@ -77,6 +77,53 @@ El proyecto estará disponible en `http://localhost:5173` (o el puerto que Vite 
   npm run preview
   ```
 
+### Ejecutar con Docker (Recomendado)
+
+Este proyecto incluye configuración de Docker para un entorno consistente.
+
+#### Prerrequisitos
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) instalado y corriendo
+
+#### Pasos
+
+1. **Construir la imagen:**
+   ```bash
+   docker compose build
+   ```
+
+2. **Iniciar el contenedor:**
+   ```bash
+   docker compose up
+   ```
+
+   O en segundo plano:
+   ```bash
+   docker compose up -d
+   ```
+
+3. **Acceder a la aplicación:**
+   - Abre tu navegador en: `http://localhost:5173`
+
+4. **Ver logs:**
+   ```bash
+   docker compose logs -f goland-frontend
+   ```
+
+5. **Detener el contenedor:**
+   ```bash
+   docker compose down
+   ```
+
+#### Variables de Entorno
+
+El proyecto está configurado para usar la variable `VITE_API_URL` para la URL del backend. Esta se encuentra configurada en `docker-compose.yml` y apunta a `http://goland-backend:8080` (cuando el backend esté disponible).
+
+#### Ventajas de usar Docker
+- ✅ Entorno consistente entre desarrolladores
+- ✅ No requiere instalar Node.js localmente
+- ✅ Fácil integración con el backend mediante Docker Compose
+- ✅ Hot-reload automático (los cambios en el código se reflejan automáticamente)
+
 ## Tecnologías Utilizadas
 
 - **React 19** - Framework de UI

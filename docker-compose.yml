@@ -1,0 +1,34 @@
+services:
+    goland-frontend:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: goland-frontend
+        ports:
+            # Mapea el puerto 5173 del contenedor al puerto 5173 del host
+            - "5173:5173"
+        environment:
+            # Variable de entorno para la URL del backend
+            # Nota: Ajustar según la configuración real del backend cuando esté disponible
+            VITE_API_URL: http://goland-backend:8080
+        volumes:
+            # Volumen para hot-reload en desarrollo (opcional pero recomendado)
+            - .:/app
+            - /app/node_modules
+        restart: unless-stopped
+
+  # Servicio backend (comentado como guía para cuando esté disponible)
+  # goland-backend:
+  #   image: goland-backend:latest  # o build: ./backend
+  #   container_name: goland-backend
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - ENV=development
+  #   restart: unless-stopped
+  #
+  # Descomentar cuando el backend esté listo:
+  # depends_on:
+  #   - goland-backend
+
+
