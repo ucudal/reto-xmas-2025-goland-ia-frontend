@@ -19,9 +19,8 @@ export default function ChatbotButton({ onClick }) {
 
     return ( <>
         <button
-            onClick={handleTestClick}
             aria-label="Open Chatbot"
-            //onClick={()=> setIsOpen(true)}
+            onClick={()=> setIsOpen(true)}
             className="fixed shadow-2xl bottom-10 right-10 bg-verde hover:bg-green-600 z-50 p-4 rounded-full hover:-translate-y-2 transform transition-all ease-in-out duration-300 flex items-center justify-center cursor-pointer"
         >
             <svg
@@ -44,6 +43,6 @@ export default function ChatbotButton({ onClick }) {
                 <path d="M9 13v2" />
             </svg>
         </button>
-        {isOpen && <ChatbotModal onClose={()=> setIsOpen(false)}/>}
+        {isOpen && <ChatbotModal nombre={handleTestClick} onClose={()=> setIsOpen(false)}/>}
     </>);
 }
