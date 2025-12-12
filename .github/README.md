@@ -11,9 +11,11 @@ Se ejecuta automáticamente cuando:
 - Se dispara manualmente desde GitHub Actions UI
 
 **Qué hace:**
-1. Construye la imagen Docker multi-stage para linux/amd64
+1. Construye la imagen Docker multi-stage optimizada (alpine/slim) para linux/amd64
 2. Hace push de la imagen al Azure Container Registry
-3. Despliega la aplicación en Kubernetes usando kubectl
+3. Inyecta variables de entorno desde secrets de GitHub al ConfigMap de Kubernetes
+4. Despliega la aplicación en Kubernetes usando kubectl
+5. Notifica a Discord el resultado del deployment (éxito o fallo)
 
 ### 2. `pr-validation.yml` - Validación de Pull Requests
 
@@ -22,7 +24,9 @@ Se ejecuta automáticamente en PRs hacia `main`.
 **Qué hace:**
 1. **build-image**: Construye la imagen Docker (sin push) para verificar que buildea correctamente
 2. **gitleaks**: Escanea el código en busca de secretos, API keys, passwords, etc.
-3. **trivy-scan**: Escanea la imagen Docker construida en busca de vulnerabilidades (CRITICAL y HIGH)
+3. **sonarqube**: Ejecuta análisis de código en SonarQube (solo en PRs)
+4. **trivy-scan**: Escanea la imagen Docker construida en busca de vulnerabilidades (CRITICAL y HIGH)
+5. **notify-discord-pr**: Notifica a Discord el estado de la validación del PR (éxito o fallo)
 
 ## Secrets Necesarios en GitHub
 
@@ -41,7 +45,23 @@ Para que los workflows funcionen correctamente, necesitas configurar los siguien
 
 ### Secrets para `pr-validation.yml`:
 
-No requiere secrets adicionales. Usa `GITHUB_TOKEN` automáticamente para gitleaks.
+1. **SONARQUBE_TOKEN**: Token de autenticación para SonarQube
+   - Valor: `sc!9#@7d>TwX'vH` (o el token correcto de SonarQube)
+   - Se usa para ejecutar análisis de código en SonarQube
+
+2. **DISCORD_WEBHOOK**: Webhook URL de Discord para notificaciones
+   - Se recibirá el link del webhook más adelante por equipo
+   - Se usa para notificar sobre estado de PRs, validaciones, etc.
+
+### Secrets adicionales para `deploy.yml`:
+
+4. **VITE_API_URL**: URL del backend (opcional, tiene valor por defecto)
+   - Valor por defecto: `http://goland-backend:8080`
+   - Se inyecta en el ConfigMap de Kubernetes durante el deployment
+
+5. **DISCORD_WEBHOOK**: Webhook URL de Discord para notificaciones
+   - Se recibirá el link del webhook más adelante por equipo
+   - Se usa para notificar sobre deploys exitosos o fallidos
 
 ## Cómo Configurar los Secrets
 

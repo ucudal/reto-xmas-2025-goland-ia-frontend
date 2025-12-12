@@ -38,6 +38,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  sonarqube:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run SonarQube analysis
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: https://sonarqube.reto-ucu.net
+          SONAR_PROJECT_KEY: goland-frontend
+
   trivy-scan:
     runs-on: ubuntu-latest
     steps:
@@ -69,4 +85,43 @@ jobs:
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
+
+  notify-discord-pr:
+    runs-on: ubuntu-latest
+    needs: [build-image, gitleaks, trivy-scan, sonarqube]
+    if: always()
+    steps:
+      - name: Notify Discord - PR Ready
+        if: success()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "🔍 PR Validation - Goland Frontend"
+          description: "PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}"
+          color: 0x00ff00
+          username: "GitHub Actions"
+          fields: |
+            [
+              {"name": "Author", "value": "${{ github.event.pull_request.user.login }}", "inline": true},
+              {"name": "Branch", "value": "${{ github.head_ref }}", "inline": true},
+              {"name": "Status", "value": "✅ All checks passed", "inline": false},
+              {"name": "PR Link", "value": "${{ github.event.pull_request.html_url }}", "inline": false}
+            ]
+
+      - name: Notify Discord - PR Failed
+        if: failure()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "❌ PR Validation Failed - Goland Frontend"
+          description: "PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}"
+          color: 0xff0000
+          username: "GitHub Actions"
+          fields: |
+            [
+              {"name": "Author", "value": "${{ github.event.pull_request.user.login }}", "inline": true},
+              {"name": "Branch", "value": "${{ github.head_ref }}", "inline": true},
+              {"name": "Status", "value": "❌ Some checks failed", "inline": false},
+              {"name": "PR Link", "value": "${{ github.event.pull_request.html_url }}", "inline": false}
+            ]
 

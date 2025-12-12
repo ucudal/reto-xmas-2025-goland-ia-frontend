@@ -73,7 +73,15 @@ jobs:
           kubectl config use-context "$CONTEXT_NAME"
 
       - name: Deploy to Kubernetes
+        id: deploy
         run: |
+          # Inyectar variables de entorno desde secrets de GitHub al ConfigMap
+          # Usando envsubst si es necesario, o directamente desde secrets
+          kubectl create configmap goland-ia-frontend-config \
+            --from-literal=VITE_API_URL="${{ secrets.VITE_API_URL || 'http://goland-backend:8080' }}" \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
           # Aplicar todos los recursos de Kubernetes
           kubectl apply -f k8s/namespace.yaml
           kubectl apply -f k8s/configmap.yaml
@@ -87,4 +95,39 @@ jobs:
           
           # Esperar a que el rollout termine
           kubectl rollout status deployment/goland-ia-frontend -n ${{ env.NAMESPACE }}
+
+      - name: Notify Discord - Deployment Success
+        if: success()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "🚀 Deployment Successful - Goland Frontend"
+          description: "New deployment to Kubernetes completed successfully"
+          color: 0x00ff00
+          username: "GitHub Actions"
+          fields: |
+            [
+              {"name": "Commit", "value": "${{ github.sha }}", "inline": true},
+              {"name": "Branch", "value": "${{ github.ref_name }}", "inline": true},
+              {"name": "Author", "value": "${{ github.actor }}", "inline": true},
+              {"name": "Image", "value": "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest", "inline": false},
+              {"name": "Namespace", "value": "${{ env.NAMESPACE }}", "inline": false}
+            ]
+
+      - name: Notify Discord - Deployment Failed
+        if: failure()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "❌ Deployment Failed - Goland Frontend"
+          description: "Deployment to Kubernetes failed"
+          color: 0xff0000
+          username: "GitHub Actions"
+          fields: |
+            [
+              {"name": "Commit", "value": "${{ github.sha }}", "inline": true},
+              {"name": "Branch", "value": "${{ github.ref_name }}", "inline": true},
+              {"name": "Author", "value": "${{ github.actor }}", "inline": true},
+              {"name": "Workflow Run", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "inline": false}
+            ]
 
