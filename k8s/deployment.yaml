@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goland-ia-frontend
+  namespace: goland-ia
+  labels:
+    app: goland-ia-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goland-ia-frontend
+  template:
+    metadata:
+      labels:
+        app: goland-ia-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: crretoxmas2024.azurecr.io/goland-frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+        env:
+        - name: VITE_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: goland-ia-frontend-config
+              key: VITE_API_URL
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+      # Image pull secrets para autenticar con Azure Container Registry
+      imagePullSecrets:
+      - name: acr-secret
+

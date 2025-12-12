@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: goland-ia-frontend-config
+  namespace: goland-ia
+data:
+  # Variable de entorno para la URL del backend
+  # Ajustar según la configuración real del backend cuando esté disponible
+  VITE_API_URL: "http://goland-backend:8080"
+

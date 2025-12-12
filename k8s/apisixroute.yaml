@@ -1,0 +1,17 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: goland-ia-frontend-route
+  namespace: goland-ia
+spec:
+  http:
+  - name: goland-ia-frontend
+    match:
+      hosts:
+      - goland-ia-frontend.reto-ucu.net
+      paths:
+      - /*
+    backends:
+    - serviceName: goland-ia-frontend-service
+      servicePort: 80
+
