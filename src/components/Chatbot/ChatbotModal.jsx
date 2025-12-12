@@ -85,17 +85,17 @@ export default function ChatbotModal({ onClose }) {
               alt="GoLand icon"
               className="w-6 h-6"
             />
-            <div className="leading-tight">
+            <div className="leading-tight text-black">
               <div className="text-lg font-semibold">GOLAND Chat</div>
               <div className="text-xs text-white flex items-center gap-2">
                 <span className="inline-block w-2 h-2 bg-green-500 rounded-full" />
-                <span>online</span>
+                <span className="text-black">online</span>
               </div>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-white hover:bg-green-700 p-1 rounded transition-colors"
+            className="hover:bg-green-700 p-1 rounded transition-colors text-black"
             aria-label="Close Chatbot"
           >
             ✕

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BsSend } from "react-icons/bs";
+import { Send } from 'lucide-react';
 
 export default function ChatInput({ input, setInput, onSendMessage, isLoading }) {
     return (
@@ -17,7 +17,7 @@ export default function ChatInput({ input, setInput, onSendMessage, isLoading })
                 disabled={isLoading}
                 className="bg-verde hover:bg-green-600 text-white px-3 py-2 rounded-full transition-colors disabled:opacity-50"
             >
-                <BsSend strokeWidth={0.7} size={18} />
+                <Send size={20}/>
             </button>
         </form>
     );
