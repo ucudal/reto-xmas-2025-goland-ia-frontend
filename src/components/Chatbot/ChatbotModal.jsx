@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import ChatServices from '../../services/ChatServices';
+import { RotateCcw, Copy } from 'lucide-react';
 
 function formatTime(date = new Date()) {
-  // Formato hh:mm AM/PM
   let hours = date.getHours();
   const minutes = date.getMinutes().toString().padStart(2, '0');
   const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -18,13 +18,19 @@ export default function ChatbotModal({ onClose }) {
     {
       id: '1',
       role: 'assistant',
-      content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
+      content: '¡Buenas! Este es un mensaje para sugerirte las opciones que podrías pedirme.\n\n• Presiona 1 para empezar un chat normal\n• Presiona 2 para saber sobre GoLand Uruguay',
       time: formatTime()
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [lastUserMessage, setLastUserMessage] = useState('');
+  const [chatMode, setChatMode] = useState('welcome');
+  const [showGolandLoading, setShowGolandLoading] = useState(false);
+  const [typingMessage, setTypingMessage] = useState(null);
+  const [showTypingDots, setShowTypingDots] = useState(false); // Solo 3 puntitos
   const messagesEndRef = useRef(null);
+  const typingIntervalRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -32,7 +38,148 @@ export default function ChatbotModal({ onClose }) {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, typingMessage, showTypingDots]);
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      console.log('Mensaje copiado al portapapeles');
+    } catch (err) {
+      console.error('Error al copiar:', err);
+    }
+  };
+
+  // ⏳ SOLO 3 PUNTITOS por 1 SEGUNDO (SIN NINGUNA BURBUJA)
+  const showTypingDotsOnly = () => {
+    setShowTypingDots(true);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        setShowTypingDots(false);
+        resolve();
+      }, 1000); // 1 SEGUNDO de solo puntitos
+    });
+  };
+
+  // 🎬 EFECTO DE ESCRITURA POR CARACTERES (50ms)
+  const startTypingEffect = async (fullText, messageId) => {
+    await showTypingDotsOnly(); // ⏳ SOLO 3 PUNTITOS por 1s
+    
+    // Crear mensaje vacío para typing
+    const emptyBotMsg = {
+      id: messageId,
+      role: 'assistant',
+      content: '',
+      time: formatTime(),
+      isTyping: true
+    };
+    setMessages(prev => [...prev, emptyBotMsg]);
+    
+    setTypingMessage({ id: messageId, fullText, currentIndex: 0 });
+
+    let currentIndex = 0;
+    typingIntervalRef.current = setInterval(() => {
+      if (currentIndex < fullText.length) {
+        const newIndex = currentIndex + 1;
+        
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.id === messageId 
+              ? { ...msg, content: fullText.slice(0, newIndex), isTyping: true }
+              : msg
+          )
+        );
+        
+        currentIndex = newIndex;
+      } else {
+        clearInterval(typingIntervalRef.current);
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === messageId 
+              ? { ...msg, content: fullText, isTyping: false }
+              : msg
+          )
+        );
+        setTypingMessage(null);
+      }
+    }, 50);
+  };
+
+  const regenerateResponse = async () => {
+    if (!lastUserMessage) return;
+
+    setIsLoading(true);
+    
+    try {
+      const res = await ChatServices.askAI(lastUserMessage);
+      const answer = res?.answer ?? 'Lo siento, no tengo una respuesta para eso.';
+      
+      const newMessageId = `${Date.now()}-bot-regen`;
+      await startTypingEffect(answer, newMessageId);
+    } catch (err) {
+      const errMsgId = `${Date.now()}-bot-err`;
+      await startTypingEffect('Hubo un error al obtener la respuesta.', errMsgId);
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCopy = (messageId) => {
+    const message = messages.find(msg => msg.id === messageId);
+    if (message) {
+      copyToClipboard(message.content);
+    }
+  };
+
+  const handleReply = (messageId) => {
+    regenerateResponse();
+  };
+
+  const handleThumbsUp = (messageId) => {
+    console.log('Thumbs up:', messageId);
+  };
+
+  const handleThumbsDown = (messageId) => {
+    console.log('Thumbs down:', messageId);
+  };
+
+  const handleEdit = (messageId, newText) => {
+    setMessages(prev => 
+      prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, content: newText, time: formatTime() }
+          : msg
+      )
+    );
+  };
+
+  const handleWelcomeChoice = async (userText) => {
+    const choice = userText.trim().toLowerCase();
+    
+    if (choice === '1') {
+      const welcomeMsgId = `${Date.now()}-bot-welcome`;
+      await startTypingEffect('¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?', welcomeMsgId);
+      setChatMode('chat');
+    } else if (choice === '2') {
+      const golandUruguayInfo = `🌿 GoLand Uruguay es una empresa pionera en la producción e industrialización de alimentos a base de semillas de cáñamo en Uruguay y la región.¡Productos naturales, veganos y sustentables! 💚`;
+      
+      const golandMsgId = `${Date.now()}-bot-goland-uy`;
+      await startTypingEffect(golandUruguayInfo, golandMsgId);
+      
+      setTimeout(async () => {
+        const followUpMsgId = `${Date.now()}-bot-followup`;
+        await startTypingEffect('¿En qué puedo ayudarte ahora? 😊', followUpMsgId);
+        setChatMode('chat');
+      }, 1000);
+      
+      setShowGolandLoading(false);
+    } else {
+      const retryMsgId = `${Date.now()}-bot-retry`;
+      await startTypingEffect('Por favor elige una opción:\n\n• 1 para chat normal\n• 2 para info de GoLand Uruguay (tienda de cáñamo)', retryMsgId);
+    }
+    
+    setIsLoading(false);
+  };
 
   const handleSendMessage = async (e) => {
     e?.preventDefault?.();
@@ -47,32 +194,38 @@ export default function ChatbotModal({ onClose }) {
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
+
+    if (chatMode === 'welcome') {
+      setIsLoading(true);
+      handleWelcomeChoice(text);
+      return;
+    }
+
+    setLastUserMessage(text);
     setIsLoading(true);
 
     try {
       const res = await ChatServices.askAI(text);
       const answer = res?.answer ?? 'Lo siento, no tengo una respuesta para eso.';
-
-      const botMsg = {
-        id: `${Date.now()}-bot`,
-        role: 'assistant',
-        content: answer,
-        time: formatTime()
-      };
-      setMessages((prev) => [...prev, botMsg]);
+      
+      const botMsgId = `${Date.now()}-bot`;
+      await startTypingEffect(answer, botMsgId);
     } catch (err) {
-      const errMsg = {
-        id: `${Date.now()}-bot-err`,
-        role: 'assistant',
-        content: 'Hubo un error al obtener la respuesta.',
-        time: formatTime()
-      };
-      setMessages((prev) => [...prev, errMsg]);
+      const errMsgId = `${Date.now()}-bot-err`;
+      await startTypingEffect('Hubo un error al obtener la respuesta.', errMsgId);
       console.error(err);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-transparent flex items-end justify-end p-4 z-50">
@@ -103,18 +256,46 @@ export default function ChatbotModal({ onClose }) {
         </div>
 
         {/* Messages */}
-        <div className=" flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.map((msg) => (
             <ChatMessage
               key={msg.id}
+              id={msg.id}
               type={msg.role === 'user' ? 'user' : 'bot'}
               text={msg.content}
               time={msg.time}
+              isTyping={msg.isTyping}
+              onCopy={handleCopy}
+              onReply={handleReply}
+              onThumbsUp={handleThumbsUp}
+              onThumbsDown={handleThumbsDown}
+              onEdit={handleEdit}
             />
           ))}
 
-          {isLoading && (
-            <div className="flex items-center space-x-2">
+          {/* ⏳ SOLO 3 PUNTITOS (sin burbuja de texto) */}
+          {showTypingDots && (
+            <div className="flex items-center space-x-2 justify-start p-2">
+              <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg inline-flex items-center">
+                <span className="animate-pulse">●</span>
+                <span className="animate-pulse" style={{animationDelay: '150ms'}}>●</span>
+                <span className="animate-pulse" style={{animationDelay: '300ms'}}>●</span>
+              </div>
+            </div>
+          )}
+
+          {showGolandLoading && (
+            <div className="flex items-center space-x-2 justify-start">
+              <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg inline-flex items-center">
+                <span className="animate-pulse">●</span>
+                <span className="animate-pulse delay-150">●</span>
+                <span className="animate-pulse delay-300">●</span>
+              </div>
+            </div>
+          )}
+
+          {isLoading && !typingMessage && !showTypingDots && (
+            <div className="flex items-center space-x-2 justify-start">
               <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg inline-flex items-center">
                 <span className="animate-pulse">●</span>
                 <span className="animate-pulse delay-150">●</span>
