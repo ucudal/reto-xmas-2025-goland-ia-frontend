@@ -23,10 +23,12 @@ export default function ChatbotModal({ onClose }) {
     }
   ]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);      // loading de API
+  const [isTypingBot, setIsTypingBot] = useState(false);  // bot escribiendo (para botón STOP)
   const [lastUserMessage, setLastUserMessage] = useState('');
   const [typingMessage, setTypingMessage] = useState(null);
   const [showTypingDots, setShowTypingDots] = useState(false); // Solo 3 puntitos
+  const [hasUserSentFirstMessage, setHasUserSentFirstMessage] = useState(false); 
   const messagesEndRef = useRef(null);
   const typingIntervalRef = useRef(null);
 
@@ -47,18 +49,18 @@ export default function ChatbotModal({ onClose }) {
     }
   };
 
-  // ⏳ SOLO 3 PUNTITOS por 1 SEGUNDO (SIN NINGUNA BURBUJA DE TEXTO)
+  //  SOLO 3 PUNTITOS por 1 SEGUNDO
   const showTypingDotsOnly = () => {
     setShowTypingDots(true);
     return new Promise((resolve) => {
       setTimeout(() => {
         setShowTypingDots(false);
         resolve();
-      }, 1000); // 1 segundo
+      }, 1000);
     });
   };
 
-  // 🎬 EFECTO DE ESCRITURA POR CARACTERES (50ms)
+  //  EFECTO DE ESCRITURA POR CARACTERES (50ms)
   const startTypingEffect = async (fullText, messageId) => {
     await showTypingDotsOnly();
 
@@ -71,33 +73,70 @@ export default function ChatbotModal({ onClose }) {
     };
     setMessages(prev => [...prev, emptyBotMsg]);
     setTypingMessage({ id: messageId, fullText, currentIndex: 0 });
+    setIsTypingBot(true);
 
     let currentIndex = 0;
     typingIntervalRef.current = setInterval(() => {
-      if (currentIndex < fullText.length) {
-        const newIndex = currentIndex + 1;
+      setTypingMessage(prevTyping => {
+        if (!prevTyping) return null;
 
-        setMessages(prevMessages =>
-          prevMessages.map(msg =>
-            msg.id === messageId
-              ? { ...msg, content: fullText.slice(0, newIndex), isTyping: true }
-              : msg
-          )
-        );
+        const { fullText } = prevTyping;
 
-        currentIndex = newIndex;
-      } else {
-        clearInterval(typingIntervalRef.current);
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === messageId
-              ? { ...msg, content: fullText, isTyping: false }
-              : msg
-          )
-        );
-        setTypingMessage(null);
-      }
+        if (currentIndex < fullText.length) {
+          const newIndex = currentIndex + 1;
+          const partial = fullText.slice(0, newIndex);
+
+          setMessages(prevMessages =>
+            prevMessages.map(msg =>
+              msg.id === messageId
+                ? { ...msg, content: partial, isTyping: true }
+                : msg
+            )
+          );
+
+          currentIndex = newIndex;
+          return { ...prevTyping, currentIndex: newIndex };
+        } else {
+          if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === messageId
+                ? { ...msg, content: fullText, isTyping: false }
+                : msg
+            )
+          );
+          setIsTypingBot(false);
+          return null;
+        }
+      });
     }, 50);
+  };
+
+  //STOP cortar el mensaje en la última palabra escrita
+  const handleStopTyping = () => {
+    if (!typingMessage) return;
+
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+    }
+
+    const { id, fullText, currentIndex } = typingMessage;
+    const partial = fullText.slice(0, currentIndex);
+    const lastSpace = partial.lastIndexOf(' ');
+    const truncated = lastSpace > 0 ? partial.slice(0, lastSpace) : partial;
+
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === id
+          ? { ...msg, content: truncated, isTyping: false }
+          : msg
+      )
+    );
+
+    setTypingMessage(null);
+    setIsTypingBot(false);
+    setShowTypingDots(false);
+    setIsLoading(false);
   };
 
   const regenerateResponse = async () => {
@@ -151,9 +190,18 @@ export default function ChatbotModal({ onClose }) {
     return '🌿 GoLand Uruguay es una empresa pionera en la producción e industrialización de alimentos a base de semillas de cáñamo en Uruguay y la región. ¡Productos naturales, veganos y sustentables! 💚';
   };
 
-  const handleSendMessage = async (e) => {
+  // Enviar mensaje (también usado por sugerencias)
+  const handleSendMessage = async (e, overrideText) => {
     e?.preventDefault?.();
-    const text = input?.trim();
+
+    // Si el bot está escribiendo, el botón actúa como STOP
+    if (isTypingBot) {
+      handleStopTyping();
+      return;
+    }
+
+    const rawText = overrideText ?? input;
+    const text = rawText?.trim();
     if (!text) return;
 
     const userMsg = {
@@ -166,6 +214,7 @@ export default function ChatbotModal({ onClose }) {
     setInput('');
     setLastUserMessage(text);
     setIsLoading(true);
+    setHasUserSentFirstMessage(true); // luego del primer mensaje oculta sugerencias
 
     try {
       const lower = text.toLowerCase();
@@ -189,6 +238,11 @@ export default function ChatbotModal({ onClose }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Click en sugerencia  manda ese texto como primer mensaje
+  const handleSuggestionClick = (suggestionText) => {
+    handleSendMessage(null, suggestionText);
   };
 
   useEffect(() => {
@@ -245,7 +299,34 @@ export default function ChatbotModal({ onClose }) {
             />
           ))}
 
-          {/* ⏳ SOLO 3 PUNTITOS (sin texto de "escribiendo") */}
+          {/* Sugerencias de primer mensaje (solo si aún no escribió nada el usuario) */}
+          {!hasUserSentFirstMessage && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('Quiero info de GoLand Uruguay')}
+                className="text-xs px-3 py-1 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors"
+              >
+                Quiero info de GoLand Uruguay
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('Recomendame un pack para empezar')}
+                className="text-xs px-3 py-1 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors"
+              >
+                Recomendame un pack para empezar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('¿Qué productos de cáñamo venden?')}
+                className="text-xs px-3 py-1 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors"
+              >
+                ¿Qué productos de cáñamo venden?
+              </button>
+            </div>
+          )}
+
+          {/* ⏳ SOLO 3 PUNTITOS */}
           {showTypingDots && (
             <div className="flex items-center space-x-2 justify-start p-2">
               <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg inline-flex items-center">
@@ -275,6 +356,7 @@ export default function ChatbotModal({ onClose }) {
           setInput={setInput}
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
+          isTypingBot={isTypingBot}
         />
       </div>
     </div>
