@@ -1,0 +1,24 @@
+{
+  "name": "ag-ui-mock-server",
+  "version": "1.0.0",
+  "description": "Servidor mock para AG-UI",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [
+    "mock",
+    "api",
+    "express",
+    "chatbot"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.2.1"
+  }
+}
+

@@ -10,7 +10,9 @@ export default function ChatMessage({
   onThumbsUp,
   onThumbsDown,
   onReply,
-  onEdit
+  onEdit,
+  liked = false,
+  disliked = false
 }) {
   const isUser = type === 'user';
 
@@ -71,19 +73,19 @@ export default function ChatMessage({
             <button
               onClick={() => onThumbsUp && onThumbsUp(id)}
               aria-label="Me gusta"
-              className="p-1"
+              className={`p-1 transition-colors ${liked ? 'opacity-100' : 'opacity-70 hover:opacity-100'}`}
               style={{ background: 'transparent', border: 'none' }}
             >
-              <ThumbsUp size={16} color="#075E54" />
+              <ThumbsUp size={16} color={liked ? "#25D366" : "#075E54"} fill={liked ? "#25D366" : "none"} />
             </button>
 
             <button
               onClick={() => onThumbsDown && onThumbsDown(id)}
               aria-label="No me gusta"
-              className="p-1"
+              className={`p-1 transition-colors ${disliked ? 'opacity-100' : 'opacity-70 hover:opacity-100'}`}
               style={{ background: 'transparent', border: 'none' }}
             >
-              <ThumbsDown size={16} color="#075E54" />
+              <ThumbsDown size={16} color={disliked ? "#EF4444" : "#075E54"} fill={disliked ? "#EF4444" : "none"} />
             </button>
           </div>
         </div>
