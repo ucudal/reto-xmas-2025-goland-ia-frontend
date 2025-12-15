@@ -18,15 +18,13 @@ export default function ChatbotModal({ onClose }) {
     {
       id: '1',
       role: 'assistant',
-      content: '¡Buenas! Este es un mensaje para sugerirte las opciones que podrías pedirme.\n\n• Presiona 1 para empezar un chat normal\n• Presiona 2 para saber sobre GoLand Uruguay',
+      content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
       time: formatTime()
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [lastUserMessage, setLastUserMessage] = useState('');
-  const [chatMode, setChatMode] = useState('welcome');
-  const [showGolandLoading, setShowGolandLoading] = useState(false);
   const [typingMessage, setTypingMessage] = useState(null);
   const [showTypingDots, setShowTypingDots] = useState(false); // Solo 3 puntitos
   const messagesEndRef = useRef(null);
@@ -49,22 +47,21 @@ export default function ChatbotModal({ onClose }) {
     }
   };
 
-  // ⏳ SOLO 3 PUNTITOS por 1 SEGUNDO (SIN NINGUNA BURBUJA)
+  // ⏳ SOLO 3 PUNTITOS por 1 SEGUNDO (SIN NINGUNA BURBUJA DE TEXTO)
   const showTypingDotsOnly = () => {
     setShowTypingDots(true);
     return new Promise((resolve) => {
       setTimeout(() => {
         setShowTypingDots(false);
         resolve();
-      }, 1000); // 1 SEGUNDO de solo puntitos
+      }, 1000); // 1 segundo
     });
   };
 
   // 🎬 EFECTO DE ESCRITURA POR CARACTERES (50ms)
   const startTypingEffect = async (fullText, messageId) => {
-    await showTypingDotsOnly(); // ⏳ SOLO 3 PUNTITOS por 1s
-    
-    // Crear mensaje vacío para typing
+    await showTypingDotsOnly();
+
     const emptyBotMsg = {
       id: messageId,
       role: 'assistant',
@@ -73,28 +70,27 @@ export default function ChatbotModal({ onClose }) {
       isTyping: true
     };
     setMessages(prev => [...prev, emptyBotMsg]);
-    
     setTypingMessage({ id: messageId, fullText, currentIndex: 0 });
 
     let currentIndex = 0;
     typingIntervalRef.current = setInterval(() => {
       if (currentIndex < fullText.length) {
         const newIndex = currentIndex + 1;
-        
-        setMessages(prevMessages => 
-          prevMessages.map(msg => 
-            msg.id === messageId 
+
+        setMessages(prevMessages =>
+          prevMessages.map(msg =>
+            msg.id === messageId
               ? { ...msg, content: fullText.slice(0, newIndex), isTyping: true }
               : msg
           )
         );
-        
+
         currentIndex = newIndex;
       } else {
         clearInterval(typingIntervalRef.current);
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === messageId 
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === messageId
               ? { ...msg, content: fullText, isTyping: false }
               : msg
           )
@@ -106,13 +102,11 @@ export default function ChatbotModal({ onClose }) {
 
   const regenerateResponse = async () => {
     if (!lastUserMessage) return;
-
     setIsLoading(true);
-    
+
     try {
       const res = await ChatServices.askAI(lastUserMessage);
       const answer = res?.answer ?? 'Lo siento, no tengo una respuesta para eso.';
-      
       const newMessageId = `${Date.now()}-bot-regen`;
       await startTypingEffect(answer, newMessageId);
     } catch (err) {
@@ -131,7 +125,7 @@ export default function ChatbotModal({ onClose }) {
     }
   };
 
-  const handleReply = (messageId) => {
+  const handleReply = () => {
     regenerateResponse();
   };
 
@@ -144,41 +138,17 @@ export default function ChatbotModal({ onClose }) {
   };
 
   const handleEdit = (messageId, newText) => {
-    setMessages(prev => 
-      prev.map(msg => 
-        msg.id === messageId 
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === messageId
           ? { ...msg, content: newText, time: formatTime() }
           : msg
       )
     );
   };
 
-  const handleWelcomeChoice = async (userText) => {
-    const choice = userText.trim().toLowerCase();
-    
-    if (choice === '1') {
-      const welcomeMsgId = `${Date.now()}-bot-welcome`;
-      await startTypingEffect('¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?', welcomeMsgId);
-      setChatMode('chat');
-    } else if (choice === '2') {
-      const golandUruguayInfo = `🌿 GoLand Uruguay es una empresa pionera en la producción e industrialización de alimentos a base de semillas de cáñamo en Uruguay y la región.¡Productos naturales, veganos y sustentables! 💚`;
-      
-      const golandMsgId = `${Date.now()}-bot-goland-uy`;
-      await startTypingEffect(golandUruguayInfo, golandMsgId);
-      
-      setTimeout(async () => {
-        const followUpMsgId = `${Date.now()}-bot-followup`;
-        await startTypingEffect('¿En qué puedo ayudarte ahora? 😊', followUpMsgId);
-        setChatMode('chat');
-      }, 1000);
-      
-      setShowGolandLoading(false);
-    } else {
-      const retryMsgId = `${Date.now()}-bot-retry`;
-      await startTypingEffect('Por favor elige una opción:\n\n• 1 para chat normal\n• 2 para info de GoLand Uruguay (tienda de cáñamo)', retryMsgId);
-    }
-    
-    setIsLoading(false);
+  const getGolandInfoMessage = () => {
+    return '🌿 GoLand Uruguay es una empresa pionera en la producción e industrialización de alimentos a base de semillas de cáñamo en Uruguay y la región. ¡Productos naturales, veganos y sustentables! 💚';
   };
 
   const handleSendMessage = async (e) => {
@@ -194,22 +164,24 @@ export default function ChatbotModal({ onClose }) {
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
-
-    if (chatMode === 'welcome') {
-      setIsLoading(true);
-      handleWelcomeChoice(text);
-      return;
-    }
-
     setLastUserMessage(text);
     setIsLoading(true);
 
     try {
-      const res = await ChatServices.askAI(text);
-      const answer = res?.answer ?? 'Lo siento, no tengo una respuesta para eso.';
-      
-      const botMsgId = `${Date.now()}-bot`;
-      await startTypingEffect(answer, botMsgId);
+      const lower = text.toLowerCase();
+      const shouldSendGolandInfo =
+        lower.includes('info') || lower.includes('informacion') || lower.includes('información');
+
+      if (shouldSendGolandInfo) {
+        const golandMsgId = `${Date.now()}-bot-goland-uy`;
+        const golandText = getGolandInfoMessage();
+        await startTypingEffect(golandText, golandMsgId);
+      } else {
+        const res = await ChatServices.askAI(text);
+        const answer = res?.answer ?? 'Lo siento, no tengo una respuesta para eso.';
+        const botMsgId = `${Date.now()}-bot`;
+        await startTypingEffect(answer, botMsgId);
+      }
     } catch (err) {
       const errMsgId = `${Date.now()}-bot-err`;
       await startTypingEffect('Hubo un error al obtener la respuesta.', errMsgId);
@@ -273,23 +245,13 @@ export default function ChatbotModal({ onClose }) {
             />
           ))}
 
-          {/* ⏳ SOLO 3 PUNTITOS (sin burbuja de texto) */}
+          {/* ⏳ SOLO 3 PUNTITOS (sin texto de "escribiendo") */}
           {showTypingDots && (
             <div className="flex items-center space-x-2 justify-start p-2">
               <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg inline-flex items-center">
                 <span className="animate-pulse">●</span>
-                <span className="animate-pulse" style={{animationDelay: '150ms'}}>●</span>
-                <span className="animate-pulse" style={{animationDelay: '300ms'}}>●</span>
-              </div>
-            </div>
-          )}
-
-          {showGolandLoading && (
-            <div className="flex items-center space-x-2 justify-start">
-              <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg inline-flex items-center">
-                <span className="animate-pulse">●</span>
-                <span className="animate-pulse delay-150">●</span>
-                <span className="animate-pulse delay-300">●</span>
+                <span className="animate-pulse" style={{ animationDelay: '150ms' }}>●</span>
+                <span className="animate-pulse" style={{ animationDelay: '300ms' }}>●</span>
               </div>
             </div>
           )}
