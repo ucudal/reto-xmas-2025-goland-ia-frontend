@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
-import ChatServices from '../../services/ChatServices';
-import { RotateCcw, Copy } from 'lucide-react';
+import AgUIService from '../../services/AgUIService';
+import { RotateCcw } from 'lucide-react';
+
+const STORAGE_KEY = 'goland-chat-conversation';
 
 function formatTime(date = new Date()) {
   let hours = date.getHours();
@@ -13,24 +15,132 @@ function formatTime(date = new Date()) {
   return `${hours}:${minutes} ${ampm}`;
 }
 
-export default function ChatbotModal({ onClose }) {
-  const [messages, setMessages] = useState([
-    {
-      id: '1',
-      role: 'assistant',
-      content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
-      time: formatTime()
+function loadConversationFromStorage() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const data = JSON.parse(stored);
+      return {
+        messages: data.messages || [
+          {
+            id: '1',
+            role: 'assistant',
+            content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
+            time: formatTime()
+          }
+        ],
+        threadId: data.threadId || null,
+      };
     }
-  ]);
+  } catch (error) {
+    console.error('Error loading conversation from storage:', error);
+  }
+  return {
+    messages: [
+      {
+        id: '1',
+        role: 'assistant',
+        content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
+        time: formatTime()
+      }
+    ],
+    threadId: null,
+  };
+}
+
+export default function ChatbotModal({ onClose }) {
+  const { messages: initialMessages, threadId: initialThreadId } = loadConversationFromStorage();
+  const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);      // loading de API
-  const [isTypingBot, setIsTypingBot] = useState(false);  // bot escribiendo (para botón STOP)
-  const [lastUserMessage, setLastUserMessage] = useState('');
-  const [typingMessage, setTypingMessage] = useState(null);
-  const [showTypingDots, setShowTypingDots] = useState(false); // Solo 3 puntitos
-  const [hasUserSentFirstMessage, setHasUserSentFirstMessage] = useState(false); 
+  const [isLoading, setIsLoading] = useState(false);
+  const [threadId, setThreadId] = useState(initialThreadId);
   const messagesEndRef = useRef(null);
-  const typingIntervalRef = useRef(null);
+  const [copiedMessageId, setCopiedMessageId] = useState(null);
+  const [reloadingMessageId, setReloadingMessageId] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [draftBeforeEdit, setDraftBeforeEdit] = useState('');
+  const cancelRunRef = useRef(false);
+
+  const getSdkMessageId = (msg) => msg?.id ?? msg?.messageId ?? msg?.metadata?.id ?? null;
+  const getWelcomeConversation = () => ({
+    messages: [
+      {
+        id: '1',
+        role: 'assistant',
+        content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
+        time: formatTime(),
+      },
+    ],
+    threadId: null,
+  });
+
+  const handleNewConversation = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.error('Error clearing conversation from storage:', error);
+    }
+
+    const fresh = getWelcomeConversation();
+    setIsLoading(false);
+    setCopiedMessageId(null);
+    setReloadingMessageId(null);
+    setEditingMessageId(null);
+    setDraftBeforeEdit('');
+    setThreadId(fresh.threadId);
+    setMessages(fresh.messages);
+  };
+
+  const runAgentWithMessages = async ({ messagesForAgent, forceNewThread = false }) => {
+    try {
+      cancelRunRef.current = false;
+      await AgUIService.runAgent({
+        threadId: forceNewThread ? null : threadId,
+      messages: messagesForAgent,
+      onThreadId: (newThreadId) => {
+        // Si forzamos thread nuevo, siempre actualizamos. Si no, solo si todavía es null.
+        setThreadId((prev) => {
+          if (forceNewThread) return newThreadId;
+          return prev || newThreadId;
+        });
+      },
+      onMessagesChanged: (sdkMessages) => {
+        if (cancelRunRef.current) return;
+        // Importante: usar el estado previo para no quedar con "messages" viejo (closure)
+        setMessages((prev) =>
+          sdkMessages.map((msg) => {
+            const normalizedId = getSdkMessageId(msg) || `${msg?.role || 'msg'}-${crypto?.randomUUID?.() || Date.now()}`;
+            const existing = prev.find((m) => m.id === normalizedId);
+            return {
+              id: normalizedId,
+              role: msg.role,
+              content: typeof msg.content === 'string' ? msg.content : '',
+              time: existing?.time || formatTime(),
+              feedback: existing?.feedback || null,
+            };
+          })
+        );
+      },
+      onRunFinished: () => {
+        if (cancelRunRef.current) return;
+        setIsLoading(false);
+      },
+      onRunError: (errorEvent) => {
+        if (cancelRunRef.current) return;
+        const errMsg = {
+          id: `${Date.now()}-error`,
+          role: 'assistant',
+          content: errorEvent.message || 'Hubo un error al obtener la respuesta.',
+          time: formatTime(),
+        };
+        setMessages((prev) => [...prev, errMsg]);
+        setIsLoading(false);
+      },
+      });
+    } finally {
+      setReloadingMessageId(null);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -38,205 +148,168 @@ export default function ChatbotModal({ onClose }) {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, typingMessage, showTypingDots]);
+  }, [messages]);
 
-  const copyToClipboard = async (text) => {
+  // Guardar conversación en localStorage cuando cambien messages o threadId
+  useEffect(() => {
     try {
-      await navigator.clipboard.writeText(text);
-      console.log('Mensaje copiado al portapapeles');
-    } catch (err) {
-      console.error('Error al copiar:', err);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        messages,
+        threadId,
+      }));
+    } catch (error) {
+      console.error('Error saving conversation to storage:', error);
     }
-  };
+  }, [messages, threadId]);
 
-  //  SOLO 3 PUNTITOS por 1 SEGUNDO
-  const showTypingDotsOnly = () => {
-    setShowTypingDots(true);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        setShowTypingDots(false);
-        resolve();
-      }, 1000);
-    });
-  };
-
-  //  EFECTO DE ESCRITURA POR CARACTERES (50ms)
-  const startTypingEffect = async (fullText, messageId) => {
-    await showTypingDotsOnly();
-
-    const emptyBotMsg = {
-      id: messageId,
-      role: 'assistant',
-      content: '',
-      time: formatTime(),
-      isTyping: true
-    };
-    setMessages(prev => [...prev, emptyBotMsg]);
-    setTypingMessage({ id: messageId, fullText, currentIndex: 0 });
-    setIsTypingBot(true);
-
-    let currentIndex = 0;
-    typingIntervalRef.current = setInterval(() => {
-      setTypingMessage(prevTyping => {
-        if (!prevTyping) return null;
-
-        const { fullText } = prevTyping;
-
-        if (currentIndex < fullText.length) {
-          const newIndex = currentIndex + 1;
-          const partial = fullText.slice(0, newIndex);
-
-          setMessages(prevMessages =>
-            prevMessages.map(msg =>
-              msg.id === messageId
-                ? { ...msg, content: partial, isTyping: true }
-                : msg
-            )
-          );
-
-          currentIndex = newIndex;
-          return { ...prevTyping, currentIndex: newIndex };
-        } else {
-          if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
-          setMessages(prev =>
-            prev.map(msg =>
-              msg.id === messageId
-                ? { ...msg, content: fullText, isTyping: false }
-                : msg
-            )
-          );
-          setIsTypingBot(false);
-          return null;
-        }
-      });
-    }, 50);
-  };
-
-  //STOP cortar el mensaje en la última palabra escrita
-  const handleStopTyping = () => {
-    if (!typingMessage) return;
-
-    if (typingIntervalRef.current) {
-      clearInterval(typingIntervalRef.current);
-    }
-
-    const { id, fullText, currentIndex } = typingMessage;
-    const partial = fullText.slice(0, currentIndex);
-    const lastSpace = partial.lastIndexOf(' ');
-    const truncated = lastSpace > 0 ? partial.slice(0, lastSpace) : partial;
-
-    setMessages(prev =>
-      prev.map(msg =>
-        msg.id === id
-          ? { ...msg, content: truncated, isTyping: false }
-          : msg
-      )
-    );
-
-    setTypingMessage(null);
-    setIsTypingBot(false);
-    setShowTypingDots(false);
-    setIsLoading(false);
-  };
-
-  const regenerateResponse = async () => {
-    if (!lastUserMessage) return;
-    setIsLoading(true);
-
-    try {
-      const res = await ChatServices.askAI(lastUserMessage);
-      const answer = res?.answer ?? 'Lo siento, no tengo una respuesta para eso.';
-      const newMessageId = `${Date.now()}-bot-regen`;
-      await startTypingEffect(answer, newMessageId);
-    } catch (err) {
-      const errMsgId = `${Date.now()}-bot-err`;
-      await startTypingEffect('Hubo un error al obtener la respuesta.', errMsgId);
-      console.error(err);
-    } finally {
+  const sendText = async (rawText) => {
+    // STOP: corta actualizaciones de UI del run actual
+    if (isLoading) {
+      cancelRunRef.current = true;
       setIsLoading(false);
-    }
-  };
-
-  const handleCopy = (messageId) => {
-    const message = messages.find(msg => msg.id === messageId);
-    if (message) {
-      copyToClipboard(message.content);
-    }
-  };
-
-  const handleReply = () => {
-    regenerateResponse();
-  };
-
-  const handleThumbsUp = (messageId) => {
-    console.log('Thumbs up:', messageId);
-  };
-
-  const handleThumbsDown = (messageId) => {
-    console.log('Thumbs down:', messageId);
-  };
-
-  const handleEdit = (messageId, newText) => {
-    setMessages(prev =>
-      prev.map(msg =>
-        msg.id === messageId
-          ? { ...msg, content: newText, time: formatTime() }
-          : msg
-      )
-    );
-  };
-
-  const getGolandInfoMessage = () => {
-    return '🌿 GoLand Uruguay es una empresa pionera en la producción e industrialización de alimentos a base de semillas de cáñamo en Uruguay y la región. ¡Productos naturales, veganos y sustentables! 💚';
-  };
-
-  // Enviar mensaje (también usado por sugerencias)
-  const handleSendMessage = async (e, overrideText) => {
-    e?.preventDefault?.();
-
-    // Si el bot está escribiendo, el botón actúa como STOP
-    if (isTypingBot) {
-      handleStopTyping();
       return;
     }
 
-    const rawText = overrideText ?? input;
     const text = rawText?.trim();
     if (!text) return;
 
-    const userMsg = {
-      id: `${Date.now()}-user`,
-      role: 'user',
-      content: text,
-      time: formatTime()
-    };
-    setMessages((prev) => [...prev, userMsg]);
     setInput('');
-    setLastUserMessage(text);
     setIsLoading(true);
-    setHasUserSentFirstMessage(true); // luego del primer mensaje oculta sugerencias
 
     try {
-      const lower = text.toLowerCase();
-      const shouldSendGolandInfo =
-        lower.includes('info') || lower.includes('informacion') || lower.includes('información');
+      // Modo edición: reemplaza el mensaje user editado, recorta historial y re-genera respuesta
+      if (editingMessageId) {
+        const editIdx = messages.findIndex((m) => m.id === editingMessageId);
+        if (editIdx === -1) {
+          setIsLoading(false);
+          setEditingMessageId(null);
+          return;
+        }
+        if (messages[editIdx]?.role !== 'user') {
+          setIsLoading(false);
+          setEditingMessageId(null);
+          return;
+        }
 
-      if (shouldSendGolandInfo) {
-        const golandMsgId = `${Date.now()}-bot-goland-uy`;
-        const golandText = getGolandInfoMessage();
-        await startTypingEffect(golandText, golandMsgId);
-      } else {
-        const res = await ChatServices.askAI(text);
-        const answer = res?.answer ?? 'Lo siento, no tengo una respuesta para eso.';
-        const botMsgId = `${Date.now()}-bot`;
-        await startTypingEffect(answer, botMsgId);
+        const updated = messages.map((m, i) =>
+          i === editIdx ? { ...m, content: text, time: formatTime() } : m
+        );
+        const kept = updated.slice(0, editIdx + 1);
+        const agentMessages = kept.map((m) => ({ role: m.role, content: m.content }));
+
+        // Reset del thread: conversación “nueva” a partir del historial editado
+        setThreadId(null);
+        setMessages(kept);
+        setEditingMessageId(null);
+        setDraftBeforeEdit('');
+        await runAgentWithMessages({ messagesForAgent: agentMessages, forceNewThread: true });
+        return;
       }
+
+      const agUIMessages = [
+        ...messages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+        {
+          role: 'user',
+          content: text,
+        },
+      ];
+
+      await runAgentWithMessages({ messagesForAgent: agUIMessages, forceNewThread: false });
     } catch (err) {
-      const errMsgId = `${Date.now()}-bot-err`;
-      await startTypingEffect('Hubo un error al obtener la respuesta.', errMsgId);
-      console.error(err);
-    } finally {
+      const errMsg = {
+        id: `${Date.now()}-error`,
+        role: 'assistant',
+        content: 'Hubo un error al obtener la respuesta.',
+        time: formatTime(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
       setIsLoading(false);
+      console.error(err);
+    }
+  };
+
+  const handleSendMessage = async (e) => {
+    e?.preventDefault?.();
+    await sendText(input);
+  };
+
+  const handleEditMessage = (messageId) => {
+    if (isLoading) return;
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg || msg.role !== 'user') return;
+    setDraftBeforeEdit(input);
+    setEditingMessageId(messageId);
+    setInput(msg.content || '');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setInput(draftBeforeEdit || '');
+    setDraftBeforeEdit('');
+  };
+
+  const handleCopy = async (messageId) => {
+    const msg = messages.find((m) => m.id === messageId);
+    const textToCopy = msg?.content ?? '';
+    if (!textToCopy) return;
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+    } catch {
+      // Fallback simple
+      const textarea = document.createElement('textarea');
+      textarea.value = textToCopy;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+
+    setCopiedMessageId(messageId);
+    window.setTimeout(() => {
+      setCopiedMessageId((prev) => (prev === messageId ? null : prev));
+    }, 900);
+  };
+
+  const setFeedback = (messageId, feedback) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, feedback } : m))
+    );
+  };
+
+  const handleReload = async (assistantMessageId) => {
+    if (isLoading) return;
+    // Regenerar: recorta el historial hasta el último mensaje de usuario previo a ese assistant
+    const idx = messages.findIndex((m) => m.id === assistantMessageId);
+    if (idx === -1) return;
+
+    let lastUserIdx = -1;
+    for (let i = idx; i >= 0; i--) {
+      if (messages[i]?.role === 'user') {
+        lastUserIdx = i;
+        break;
+      }
+    }
+    if (lastUserIdx === -1) return;
+
+    const kept = messages.slice(0, lastUserIdx + 1);
+    const agentMessages = kept.map((m) => ({ role: m.role, content: m.content }));
+
+    // Reset del thread: nuevo run, pero con el mismo historial “hasta el user”
+    try {
+      setIsLoading(true);
+      setThreadId(null);
+      setMessages(kept);
+      setReloadingMessageId(assistantMessageId);
+      await runAgentWithMessages({ messagesForAgent: agentMessages, forceNewThread: true });
+    } catch (err) {
+      setIsLoading(false);
+      console.error(err);
     }
   };
 
@@ -244,14 +317,6 @@ export default function ChatbotModal({ onClose }) {
   const handleSuggestionClick = (suggestionText) => {
     handleSendMessage(null, suggestionText);
   };
-
-  useEffect(() => {
-    return () => {
-      if (typingIntervalRef.current) {
-        clearInterval(typingIntervalRef.current);
-      }
-    };
-  }, []);
 
   return (
     <div className="fixed inset-0 bg-transparent flex items-end justify-end p-4 z-50">
@@ -272,17 +337,29 @@ export default function ChatbotModal({ onClose }) {
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="hover:bg-green-700 p-1 rounded transition-colors text-black"
-            aria-label="Close Chatbot"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleNewConversation}
+              className="flex items-center hover:bg-green-200 p-2 rounded transition-all duration-150 text-black cursor-pointer hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+              aria-label="Nueva conversación"
+              title="Nueva conversación"
+              type="button"
+            >
+              <RotateCcw size={14} />
+            </button>
+            <button
+              onClick={onClose}
+              className="hover:bg-green-700 p-1 rounded transition-colors text-black"
+              aria-label="Close Chatbot"
+              type="button"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3">
           {messages.map((msg) => (
             <ChatMessage
               key={msg.id}
@@ -290,55 +367,19 @@ export default function ChatbotModal({ onClose }) {
               type={msg.role === 'user' ? 'user' : 'bot'}
               text={msg.content}
               time={msg.time}
-              isTyping={msg.isTyping}
+              feedback={msg.feedback}
+              copied={copiedMessageId === msg.id}
+              reloading={reloadingMessageId === msg.id}
               onCopy={handleCopy}
-              onReply={handleReply}
-              onThumbsUp={handleThumbsUp}
-              onThumbsDown={handleThumbsDown}
-              onEdit={handleEdit}
+              onThumbsUp={(id) => setFeedback(id, 'up')}
+              onThumbsDown={(id) => setFeedback(id, 'down')}
+              onReload={handleReload}
+              onEdit={handleEditMessage}
             />
           ))}
 
-          {/* Sugerencias de primer mensaje (solo si aún no escribió nada el usuario) */}
-          {!hasUserSentFirstMessage && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('Quiero info de GoLand Uruguay')}
-                className="text-xs px-3 py-1 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors"
-              >
-                Quiero info de GoLand Uruguay
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('Recomendame un pack para empezar')}
-                className="text-xs px-3 py-1 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors"
-              >
-                Recomendame un pack para empezar
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('¿Qué productos de cáñamo venden?')}
-                className="text-xs px-3 py-1 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors"
-              >
-                ¿Qué productos de cáñamo venden?
-              </button>
-            </div>
-          )}
-
-          {/* ⏳ SOLO 3 PUNTITOS */}
-          {showTypingDots && (
-            <div className="flex items-center space-x-2 justify-start p-2">
-              <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg inline-flex items-center">
-                <span className="animate-pulse">●</span>
-                <span className="animate-pulse" style={{ animationDelay: '150ms' }}>●</span>
-                <span className="animate-pulse" style={{ animationDelay: '300ms' }}>●</span>
-              </div>
-            </div>
-          )}
-
-          {isLoading && !typingMessage && !showTypingDots && (
-            <div className="flex items-center space-x-2 justify-start">
+          {isLoading && messages[messages.length - 1]?.content === '' && (
+            <div className="flex items-center space-x-2">
               <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg inline-flex items-center">
                 <span className="animate-pulse">●</span>
                 <span className="animate-pulse delay-150">●</span>
@@ -347,16 +388,48 @@ export default function ChatbotModal({ onClose }) {
             </div>
           )}
 
+          {/* Sugerencias (solo si aún no hay mensajes del usuario) */}
+          {!messages.some((m) => m.role === 'user') && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[
+                'Quiero info de GoLand Uruguay',
+                'Recomendame un pack para empezar',
+                '¿Qué productos de cáñamo venden?',
+              ].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => sendText(s)}
+                  className="text-xs px-3 py-1 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
         {/* Input */}
+        {editingMessageId && (
+          <div className="px-4 pt-3 pb-1 text-xs text-gray-600 flex items-center justify-between">
+            <span>Editando mensaje…</span>
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="text-gray-700 hover:text-black underline underline-offset-2"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
         <ChatInput
           input={input}
           setInput={setInput}
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
-          isTypingBot={isTypingBot}
+          isTypingBot={isLoading}
         />
       </div>
     </div>

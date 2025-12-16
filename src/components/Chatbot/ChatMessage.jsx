@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { RotateCcw, Copy, ThumbsUp, ThumbsDown, Pencil, Check, X } from 'lucide-react';
+import React from 'react';
+import { RotateCcw, Copy, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react';
 
 export default function ChatMessage({
   id,
@@ -9,195 +9,97 @@ export default function ChatMessage({
   onCopy,
   onThumbsUp,
   onThumbsDown,
-  onReply,
-  onEdit
+  feedback,
+  copied,
+  reloading,
+  onReload,
+  onEdit,
 }) {
   const isUser = type === 'user';
-  const [thumbUpActive, setThumbUpActive] = useState(false);
-  const [thumbDownActive, setThumbDownActive] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(text);
-  const textareaRef = React.useRef(null);
-
-  // Contenedor principal: group para detectar hover
+  const iconBtnBase =
+    'p-1.5 rounded transition-all duration-150 cursor-pointer hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2';
   const containerClass = `group relative flex ${isUser ? 'justify-end' : 'justify-start'} flex-col items-${isUser ? 'end' : 'start'}`;
 
   // Burbuja: estilos diferentes para user/bot
-  const bubbleBase = 'inline-block max-w-[72%] px-4 py-3 rounded-[12px]';
+  // break-words = overflow-wrap: break-word (solo corta palabras MUY largas que no caben)
+  const bubbleBase = 'max-w-[72%] px-4 py-3 rounded-[12px] break-words';
   const bubbleClass = isUser
     ? `${bubbleBase} bg-[#25D366] text-white rounded-br-[6px]`
     : `${bubbleBase} bg-white text-gray-900 border border-[rgba(0,0,0,0.06)] rounded-bl-[6px]`;
 
   const timeClass = `text-xs text-gray-500 mt-1 ${isUser ? 'text-right' : 'text-left'}`;
 
-  const handleCopy = () => {
-    if (onCopy) {
-      onCopy(id);
-    }
-    navigator.clipboard.writeText(text);
-  };
-
-  const handleThumbsUp = () => {
-    setThumbUpActive(true);
-    setThumbDownActive(false);
-    if (onThumbsUp) onThumbsUp(id);
-  };
-
-  const handleThumbsDown = () => {
-    setThumbDownActive(true);
-    setThumbUpActive(false);
-    if (onThumbsDown) onThumbsDown(id);
-  };
-
-  const handleEditStart = () => {
-    setIsEditing(true);
-    setEditText(text);
-    // Focus al textarea después del render
-    setTimeout(() => {
-      textareaRef.current?.focus();
-      textareaRef.current?.select();
-    }, 0);
-  };
-
-  const handleEditSave = () => {
-    const trimmedText = editText.trim();
-    if (trimmedText && onEdit) {
-      // ✅ LLAMA AL PADRE CON EL NUEVO TEXTO
-      onEdit(id, trimmedText);
-    }
-    setIsEditing(false);
-  };
-
-  const handleEditCancel = () => {
-    setIsEditing(false);
-    setEditText(text);
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      handleEditSave();
-    } else if (e.key === 'Escape') {
-      handleEditCancel();
-    }
-  };
-
-  const buttonBase = "p-1 hover:bg-gray-100 rounded-full transition-all duration-200";
-
   return (
     <div className={containerClass} style={{ gap: '0.25rem' }}>
+      {/* Row that contains bubble for user messages, or bubble + actions for bot */}
       {isUser ? (
-        isEditing ? (
-          // MODO EDICIÓN - TEXTO NEGRO LEGIBLE
-          <div className="flex flex-col gap-2 w-[72%] max-w-[72%]">
-            <div className="flex items-end gap-2">
-              {/* Botones guardar/cancelar */}
-              <div className="flex gap-1">
-                <button
-                  onClick={handleEditSave}
-                  aria-label="Guardar"
-                  className={`${buttonBase} bg-green-500 hover:bg-green-600 text-white`}
-                  style={{ border: 'none' }}
-                >
-                  <Check size={16} />
-                </button>
-                <button
-                  onClick={handleEditCancel}
-                  aria-label="Cancelar"
-                  className={`${buttonBase} bg-gray-500 hover:bg-gray-600 text-white`}
-                  style={{ border: 'none' }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => onEdit && onEdit(id)}
+            aria-label="Editar mensaje"
+            title="Editar"
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-gray-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 flex-shrink-0"
+            style={{ background: 'transparent', border: 'none' }}
+            type="button"
+          >
+            <Pencil size={18} color="#374151" />
+          </button>
 
-              {/* Textarea editable - TEXTO NEGRO */}
-              <textarea
-                ref={textareaRef}
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="flex-1 bg-white text-black border border-gray-300 rounded-[6px] px-3 py-2 placeholder-gray-500 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[40px] max-h-[150px]"
-                placeholder="Edita tu mensaje..."
-                rows={1}
-                style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-              />
-            </div>
-            <div className={`${timeClass} text-gray-400`}>{time}</div>
+          <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap' }}>
+            {text}
           </div>
-        ) : (
-          // MODO NORMAL (usuario)
-          <div className="flex items-end gap-2">
-            <button
-              onClick={handleEditStart}
-              aria-label="Editar mensaje"
-              className={`${buttonBase} opacity-0 group-hover:opacity-100`}
-              style={{ background: 'transparent', border: 'none' }}
-            >
-              <Pencil size={18} color="#374151" />
-            </button>
-
-            <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {text}
-            </div>
-          </div>
-        )
+        </div>
       ) : (
-        // MODO BOT (sin editar)
-        <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+        <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap' }}>
           <div>{text}</div>
 
           <div className="mt-2 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
-              onClick={() => onReply && onReply(id)}
-              aria-label="Regenerar respuesta"
-              className={`${buttonBase} hover:scale-110`}
+              onClick={() => onReload && onReload(id)}
+              aria-label="Regenerar"
+              className={`${iconBtnBase} hover:bg-gray-100`}
               style={{ background: 'transparent', border: 'none' }}
+              type="button"
             >
-              <RotateCcw size={16} color="#075E54" />
+              <RotateCcw size={16} color="#075E54" className={reloading ? 'animate-spin' : ''} />
             </button>
 
             <button
-              onClick={handleCopy}
-              aria-label="Copiar mensaje"
-              className={`${buttonBase} hover:scale-110`}
+              onClick={() => onCopy && onCopy(id)}
+              aria-label="Copiar"
+              className={`${iconBtnBase} ${copied ? 'bg-green-50' : 'hover:bg-gray-100'}`}
               style={{ background: 'transparent', border: 'none' }}
+              type="button"
             >
-              <Copy size={16} color="#075E54" />
+              <Copy size={16} color={copied ? '#25D366' : '#075E54'} />
             </button>
 
             <button
-              onClick={handleThumbsUp}
+              onClick={() => onThumbsUp && onThumbsUp(id)}
               aria-label="Me gusta"
-              className={`${buttonBase} hover:scale-110 ${thumbUpActive ? 'bg-green-100 text-green-600 shadow-md' : ''}`}
+              aria-pressed={feedback === 'up'}
+              className={`${iconBtnBase} ${feedback === 'up' ? 'bg-green-50' : 'hover:bg-gray-100'}`}
               style={{ background: 'transparent', border: 'none' }}
+              type="button"
             >
-              <ThumbsUp 
-                size={16} 
-                fill={thumbUpActive ? "#059669" : "none"} 
-                color={thumbUpActive ? "#059669" : "#075E54"} 
-              />
+              <ThumbsUp size={16} color={feedback === 'up' ? '#25D366' : '#075E54'} />
             </button>
 
             <button
-              onClick={handleThumbsDown}
+              onClick={() => onThumbsDown && onThumbsDown(id)}
               aria-label="No me gusta"
-              className={`${buttonBase} hover:scale-110 ${thumbDownActive ? 'bg-red-100 text-red-600 shadow-md' : ''}`}
+              aria-pressed={feedback === 'down'}
+              className={`${iconBtnBase} ${feedback === 'down' ? 'bg-red-50' : 'hover:bg-gray-100'}`}
               style={{ background: 'transparent', border: 'none' }}
+              type="button"
             >
-              <ThumbsDown 
-                size={16} 
-                fill={thumbDownActive ? "#DC2626" : "none"} 
-                color={thumbDownActive ? "#DC2626" : "#075E54"} 
-              />
+              <ThumbsDown size={16} color={feedback === 'down' ? '#EF4444' : '#075E54'} />
             </button>
           </div>
         </div>
       )}
 
-      {/* Hora debajo de la burbuja (solo en modo normal) */}
-      {!isUser || !isEditing ? (
-        time && <div className={timeClass}>{time}</div>
-      ) : null}
+      {time && <div className={timeClass}>{time}</div>}
     </div>
   );
 }
