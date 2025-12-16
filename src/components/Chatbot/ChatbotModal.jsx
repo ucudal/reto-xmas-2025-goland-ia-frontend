@@ -57,6 +57,8 @@ export default function ChatbotModal({ onClose }) {
   const messagesEndRef = useRef(null);
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [reloadingMessageId, setReloadingMessageId] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [draftBeforeEdit, setDraftBeforeEdit] = useState('');
 
   const getSdkMessageId = (msg) => msg?.id ?? msg?.messageId ?? msg?.metadata?.id ?? null;
   const getWelcomeConversation = () => ({
@@ -82,6 +84,8 @@ export default function ChatbotModal({ onClose }) {
     setIsLoading(false);
     setCopiedMessageId(null);
     setReloadingMessageId(null);
+    setEditingMessageId(null);
+    setDraftBeforeEdit('');
     setThreadId(fresh.threadId);
     setMessages(fresh.messages);
   };
@@ -162,6 +166,35 @@ export default function ChatbotModal({ onClose }) {
     setIsLoading(true);
 
     try {
+      // Modo edición: reemplaza el mensaje user editado, recorta historial y re-genera respuesta
+      if (editingMessageId) {
+        const editIdx = messages.findIndex((m) => m.id === editingMessageId);
+        if (editIdx === -1) {
+          setIsLoading(false);
+          setEditingMessageId(null);
+          return;
+        }
+        if (messages[editIdx]?.role !== 'user') {
+          setIsLoading(false);
+          setEditingMessageId(null);
+          return;
+        }
+
+        const updated = messages.map((m, i) =>
+          i === editIdx ? { ...m, content: text, time: formatTime() } : m
+        );
+        const kept = updated.slice(0, editIdx + 1);
+        const agentMessages = kept.map((m) => ({ role: m.role, content: m.content }));
+
+        // Reset del thread: conversación “nueva” a partir del historial editado
+        setThreadId(null);
+        setMessages(kept);
+        setEditingMessageId(null);
+        setDraftBeforeEdit('');
+        await runAgentWithMessages({ messagesForAgent: agentMessages, forceNewThread: true });
+        return;
+      }
+
       const agUIMessages = [
         ...messages.map((msg) => ({
           role: msg.role,
@@ -185,6 +218,21 @@ export default function ChatbotModal({ onClose }) {
       setIsLoading(false);
       console.error(err);
     }
+  };
+
+  const handleEditMessage = (messageId) => {
+    if (isLoading) return;
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg || msg.role !== 'user') return;
+    setDraftBeforeEdit(input);
+    setEditingMessageId(messageId);
+    setInput(msg.content || '');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setInput(draftBeforeEdit || '');
+    setDraftBeforeEdit('');
   };
 
   const handleCopy = async (messageId) => {
@@ -271,7 +319,7 @@ export default function ChatbotModal({ onClose }) {
           <div className="flex items-center gap-2">
             <button
               onClick={handleNewConversation}
-              className="flex items-center hover:bg-green-200 p-2 rounded transition-colors text-black"
+              className="flex items-center hover:bg-green-200 p-2 rounded transition-all duration-150 text-black cursor-pointer hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
               aria-label="Nueva conversación"
               title="Nueva conversación"
               type="button"
@@ -305,6 +353,7 @@ export default function ChatbotModal({ onClose }) {
               onThumbsUp={(id) => setFeedback(id, 'up')}
               onThumbsDown={(id) => setFeedback(id, 'down')}
               onReload={handleReload}
+              onEdit={handleEditMessage}
             />
           ))}
 
@@ -322,6 +371,18 @@ export default function ChatbotModal({ onClose }) {
         </div>
 
         {/* Input */}
+        {editingMessageId && (
+          <div className="px-4 pt-3 pb-1 text-xs text-gray-600 flex items-center justify-between">
+            <span>Editando mensaje…</span>
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="text-gray-700 hover:text-black underline underline-offset-2"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
         <ChatInput
           input={input}
           setInput={setInput}

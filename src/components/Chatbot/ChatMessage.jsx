@@ -1,5 +1,5 @@
 import React from 'react';
-import { RotateCcw, Copy, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { RotateCcw, Copy, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react';
 
 export default function ChatMessage({
   id,
@@ -10,11 +10,15 @@ export default function ChatMessage({
   onThumbsUp,
   onThumbsDown,
   onReload,
+  onEdit,
   feedback,
   copied,
   reloading
 }) {
   const isUser = type === 'user';
+
+  const iconBtnBase =
+    'p-1.5 rounded transition-all duration-150 cursor-pointer hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2';
 
   // Contenedor principal: group para detectar hover (columna: burbuja + hora)
   const containerClass = `group relative flex ${isUser ? 'justify-end' : 'justify-start'} flex-col items-${isUser ? 'end' : 'start'}`;
@@ -31,8 +35,21 @@ export default function ChatMessage({
     <div className={containerClass} style={{ gap: '0.25rem' }}>
       {/* Row that contains bubble for user messages, or bubble + actions for bot */}
       {isUser ? (
-        <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-          {text}
+        <div className="flex items-end gap-2">
+          <button
+            onClick={() => onEdit && onEdit(id)}
+            aria-label="Editar mensaje"
+            title="Editar"
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-gray-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+            style={{ background: 'transparent', border: 'none' }}
+            type="button"
+          >
+            <Pencil size={16} color="#374151" />
+          </button>
+
+          <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {text}
+          </div>
         </div>
       ) : (
         <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -43,7 +60,7 @@ export default function ChatMessage({
             <button
               onClick={() => onReload && onReload(id)}
               aria-label="Regenerar"
-              className="p-1 rounded hover:bg-gray-100 transition-colors"
+              className={`${iconBtnBase} hover:bg-gray-100`}
               style={{ background: 'transparent', border: 'none' }}
             >
               <RotateCcw size={16} color="#075E54" className={reloading ? 'animate-spin' : ''} />
@@ -52,7 +69,7 @@ export default function ChatMessage({
             <button
               onClick={() => onCopy && onCopy(id)}
               aria-label="Copiar"
-              className={`p-1 rounded transition-colors ${copied ? 'bg-green-50' : 'hover:bg-gray-100'}`}
+              className={`${iconBtnBase} ${copied ? 'bg-green-50' : 'hover:bg-gray-100'}`}
               style={{ background: 'transparent', border: 'none' }}
             >
               <Copy size={16} color={copied ? '#25D366' : '#075E54'} />
@@ -62,7 +79,7 @@ export default function ChatMessage({
               onClick={() => onThumbsUp && onThumbsUp(id)}
               aria-label="Me gusta"
               aria-pressed={feedback === 'up'}
-              className={`p-1 rounded transition-colors ${feedback === 'up' ? 'bg-green-50' : 'hover:bg-gray-100'}`}
+              className={`${iconBtnBase} ${feedback === 'up' ? 'bg-green-50' : 'hover:bg-gray-100'}`}
               style={{ background: 'transparent', border: 'none' }}
             >
                 <ThumbsUp size={16} color={feedback === 'up' ? '#25D366' : '#075E54'} />
@@ -72,7 +89,7 @@ export default function ChatMessage({
               onClick={() => onThumbsDown && onThumbsDown(id)}
               aria-label="No me gusta"
               aria-pressed={feedback === 'down'}
-              className={`p-1 rounded transition-colors ${feedback === 'down' ? 'bg-red-50' : 'hover:bg-gray-100'}`}
+              className={`${iconBtnBase} ${feedback === 'down' ? 'bg-red-50' : 'hover:bg-gray-100'}`}
               style={{ background: 'transparent', border: 'none' }}
             >
                 <ThumbsDown size={16} color={feedback === 'down' ? '#EF4444' : '#075E54'} />
