@@ -59,6 +59,7 @@ export default function ChatbotModal({ onClose }) {
   const [reloadingMessageId, setReloadingMessageId] = useState(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [draftBeforeEdit, setDraftBeforeEdit] = useState('');
+  const cancelRunRef = useRef(false);
 
   const getSdkMessageId = (msg) => msg?.id ?? msg?.messageId ?? msg?.metadata?.id ?? null;
   const getWelcomeConversation = () => ({
@@ -92,6 +93,7 @@ export default function ChatbotModal({ onClose }) {
 
   const runAgentWithMessages = async ({ messagesForAgent, forceNewThread = false }) => {
     try {
+      cancelRunRef.current = false;
       await AgUIService.runAgent({
         threadId: forceNewThread ? null : threadId,
       messages: messagesForAgent,
@@ -103,6 +105,7 @@ export default function ChatbotModal({ onClose }) {
         });
       },
       onMessagesChanged: (sdkMessages) => {
+        if (cancelRunRef.current) return;
         // Importante: usar el estado previo para no quedar con "messages" viejo (closure)
         setMessages((prev) =>
           sdkMessages.map((msg) => {
@@ -119,9 +122,11 @@ export default function ChatbotModal({ onClose }) {
         );
       },
       onRunFinished: () => {
+        if (cancelRunRef.current) return;
         setIsLoading(false);
       },
       onRunError: (errorEvent) => {
+        if (cancelRunRef.current) return;
         const errMsg = {
           id: `${Date.now()}-error`,
           role: 'assistant',
@@ -157,9 +162,15 @@ export default function ChatbotModal({ onClose }) {
     }
   }, [messages, threadId]);
 
-  const handleSendMessage = async (e) => {
-    e?.preventDefault?.();
-    const text = input?.trim();
+  const sendText = async (rawText) => {
+    // STOP: corta actualizaciones de UI del run actual
+    if (isLoading) {
+      cancelRunRef.current = true;
+      setIsLoading(false);
+      return;
+    }
+
+    const text = rawText?.trim();
     if (!text) return;
 
     setInput('');
@@ -218,6 +229,11 @@ export default function ChatbotModal({ onClose }) {
       setIsLoading(false);
       console.error(err);
     }
+  };
+
+  const handleSendMessage = async (e) => {
+    e?.preventDefault?.();
+    await sendText(input);
   };
 
   const handleEditMessage = (messageId) => {
@@ -297,6 +313,11 @@ export default function ChatbotModal({ onClose }) {
     }
   };
 
+  // Click en sugerencia  manda ese texto como primer mensaje
+  const handleSuggestionClick = (suggestionText) => {
+    handleSendMessage(null, suggestionText);
+  };
+
   return (
     <div className="fixed inset-0 bg-transparent flex items-end justify-end p-4 z-50">
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm h-[36rem] flex flex-col">
@@ -367,6 +388,26 @@ export default function ChatbotModal({ onClose }) {
             </div>
           )}
 
+          {/* Sugerencias (solo si aún no hay mensajes del usuario) */}
+          {!messages.some((m) => m.role === 'user') && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[
+                'Quiero info de GoLand Uruguay',
+                'Recomendame un pack para empezar',
+                '¿Qué productos de cáñamo venden?',
+              ].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => sendText(s)}
+                  className="text-xs px-3 py-1 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -388,6 +429,7 @@ export default function ChatbotModal({ onClose }) {
           setInput={setInput}
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
+          isTypingBot={isLoading}
         />
       </div>
     </div>

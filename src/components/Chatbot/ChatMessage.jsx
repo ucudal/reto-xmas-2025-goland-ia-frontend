@@ -9,18 +9,15 @@ export default function ChatMessage({
   onCopy,
   onThumbsUp,
   onThumbsDown,
-  onReload,
-  onEdit,
   feedback,
   copied,
-  reloading
+  reloading,
+  onReload,
+  onEdit,
 }) {
   const isUser = type === 'user';
-
   const iconBtnBase =
     'p-1.5 rounded transition-all duration-150 cursor-pointer hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2';
-
-  // Contenedor principal: group para detectar hover (columna: burbuja + hora)
   const containerClass = `group relative flex ${isUser ? 'justify-end' : 'justify-start'} flex-col items-${isUser ? 'end' : 'start'}`;
 
   // Burbuja: estilos diferentes para user/bot
@@ -36,8 +33,7 @@ export default function ChatMessage({
     <div className={containerClass} style={{ gap: '0.25rem' }}>
       {/* Row that contains bubble for user messages, or bubble + actions for bot */}
       {isUser ? (
-        <div className="flex items-center justify-end gap-2 min-w-0 w-full">
-          {/* Lápiz a la izquierda de la burbuja */}
+        <div className="flex items-center justify-end gap-2">
           <button
             onClick={() => onEdit && onEdit(id)}
             aria-label="Editar mensaje"
@@ -46,24 +42,24 @@ export default function ChatMessage({
             style={{ background: 'transparent', border: 'none' }}
             type="button"
           >
-            <Pencil size={16} color="#374151" />
+            <Pencil size={18} color="#374151" />
           </button>
 
-          <div className={`${bubbleClass} min-w-0`}>
+          <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap' }}>
             {text}
           </div>
         </div>
       ) : (
-        <div className={`${bubbleClass} min-w-0`}>
+        <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap' }}>
           <div>{text}</div>
 
-          {/* Iconos dentro de la burbuja (debajo del texto) */}
-          <div className="mt-2 flex items-center gap-3">
+          <div className="mt-2 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={() => onReload && onReload(id)}
               aria-label="Regenerar"
               className={`${iconBtnBase} hover:bg-gray-100`}
               style={{ background: 'transparent', border: 'none' }}
+              type="button"
             >
               <RotateCcw size={16} color="#075E54" className={reloading ? 'animate-spin' : ''} />
             </button>
@@ -73,6 +69,7 @@ export default function ChatMessage({
               aria-label="Copiar"
               className={`${iconBtnBase} ${copied ? 'bg-green-50' : 'hover:bg-gray-100'}`}
               style={{ background: 'transparent', border: 'none' }}
+              type="button"
             >
               <Copy size={16} color={copied ? '#25D366' : '#075E54'} />
             </button>
@@ -83,8 +80,9 @@ export default function ChatMessage({
               aria-pressed={feedback === 'up'}
               className={`${iconBtnBase} ${feedback === 'up' ? 'bg-green-50' : 'hover:bg-gray-100'}`}
               style={{ background: 'transparent', border: 'none' }}
+              type="button"
             >
-                <ThumbsUp size={16} color={feedback === 'up' ? '#25D366' : '#075E54'} />
+              <ThumbsUp size={16} color={feedback === 'up' ? '#25D366' : '#075E54'} />
             </button>
 
             <button
@@ -93,19 +91,15 @@ export default function ChatMessage({
               aria-pressed={feedback === 'down'}
               className={`${iconBtnBase} ${feedback === 'down' ? 'bg-red-50' : 'hover:bg-gray-100'}`}
               style={{ background: 'transparent', border: 'none' }}
+              type="button"
             >
-                <ThumbsDown size={16} color={feedback === 'down' ? '#EF4444' : '#075E54'} />
+              <ThumbsDown size={16} color={feedback === 'down' ? '#EF4444' : '#075E54'} />
             </button>
           </div>
         </div>
       )}
 
-      {/* Hora debajo de la burbuja */}
-      {time && (
-        <div className={timeClass}>
-          {time}
-        </div>
-      )}
+      {time && <div className={timeClass}>{time}</div>}
     </div>
   );
 }
