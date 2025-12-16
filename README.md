@@ -58,23 +58,38 @@ cd web-clone
 npm install
 ```
 
-### 3. Configurar variables de entorno (opcional)
-Copia `.env.example` a `.env` y ajusta las variables según necesites:
+### 3. Configurar variables de entorno
+
+**⚠️ IMPORTANTE:** Debes crear un archivo `.env` antes de ejecutar el proyecto.
+
+Copia `.env.example` a `.env`:
 ```bash
+# En Windows (PowerShell)
+Copy-Item .env.example .env
+
+# En Windows (CMD)
+copy .env.example .env
+
+# En Linux/Mac
 cp .env.example .env
 ```
 
-**Variables disponibles:**
+**Variables disponibles en `.env`:**
 ```env
 # URL del servidor AG-UI (mock o producción)
+# Por defecto: servidor mock local
+# Cuando el backend esté listo, cambiar a: https://tu-backend-url.com
 VITE_AG_UI_SERVER_URL=http://localhost:3001
 
-# Para usar el servidor legacy (opcional)
+# Configuración legacy (opcional)
 VITE_USE_MOCK_SERVER=true
 VITE_MOCK_SERVER_URL=http://localhost:3001
 ```
 
-Por defecto, el proyecto usa el protocolo AG-UI con streaming caracter por caracter.
+**Nota:** 
+- El archivo `.env` NO se sube al repositorio (está en `.gitignore`)
+- Cada desarrollador debe crear su propio `.env` basado en `.env.example`
+- Por defecto, el proyecto usa el protocolo AG-UI con streaming caracter por caracter
 
 ### 4. Instalar dependencias del servidor mock
 ```bash
@@ -172,9 +187,12 @@ server/
 └── README.md             # Documentación del servidor mock
 ```
 
-## 📚 Documentación para Backend
+## 📚 Documentación
 
-Si eres del equipo de backend, consulta:
+### Para Desarrolladores Frontend
+- **[Guía de Setup](docs/SETUP.md)** - Configuración inicial del proyecto
+
+### Para Backend
 - **[Especificación Técnica](docs/BACKEND_SPECIFICATION.md)** - Contrato completo de comunicación
 - **[Cambios en Frontend](docs/FRONTEND_CHANGES.md)** - Qué cambiar cuando el endpoint esté listo
 

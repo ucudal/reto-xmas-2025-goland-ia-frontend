@@ -84,7 +84,6 @@ export default function ChatbotModal({ onClose }) {
     currentMessage,
     error,
     sendMessage,
-    reset,
     sendFeedback,
     sessionId
   } = useAGUI();
@@ -188,9 +187,11 @@ export default function ChatbotModal({ onClose }) {
         time: formatTime(),
         isThinking: true
       };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       setMessages((prev) => [...prev, thinkingMsg]);
     } else if (!isThinking) {
       // Remover mensaje de "pensando" si existe
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       setMessages((prev) => prev.filter(msg => !msg.isThinking));
     }
   }, [isThinking]);
@@ -275,14 +276,51 @@ export default function ChatbotModal({ onClose }) {
     }
   };
 
-  // Función para reenviar mensaje (reply) - genera nueva respuesta
-  const handleReply = (messageId) => {
-    const message = messages.find(msg => msg.id === messageId);
-    if (message && message.content) {
-      // Reenviar el mensaje del bot como nueva pregunta del usuario
-      // Esto generará una nueva respuesta del agente
-      handleSendMessage(null, message.content);
+  // Función para reenviar/regenerar respuesta del bot
+  // No crea nuevo mensaje de usuario, solo regenera la respuesta del bot
+  const handleReply = async (messageId) => {
+    // Encontrar el mensaje del bot que se quiere regenerar
+    const botMessage = messages.find(msg => msg.id === messageId);
+    if (!botMessage || botMessage.role !== 'assistant') return;
+
+    // Encontrar el mensaje del usuario anterior a este bot
+    const botMessageIndex = messages.findIndex(msg => msg.id === messageId);
+    if (botMessageIndex === -1) return;
+
+    // Buscar hacia atrás para encontrar el mensaje del usuario
+    let userMessage = null;
+    for (let i = botMessageIndex - 1; i >= 0; i--) {
+      if (messages[i].role === 'user' && !messages[i].isThinking) {
+        userMessage = messages[i];
+        break;
+      }
     }
+
+    if (!userMessage || !userMessage.content) return;
+
+    // Eliminar la respuesta anterior del bot y todas las respuestas siguientes
+    setMessages((prev) => {
+      // Mantener todos los mensajes hasta el mensaje del usuario
+      // Eliminar desde el mensaje del bot en adelante
+      return prev.slice(0, botMessageIndex);
+    });
+
+    // Crear nuevo mensaje placeholder para el asistente
+    const botMsgId = `${Date.now()}-bot`;
+    streamingMessageIdRef.current = botMsgId;
+    
+    const botMsg = {
+      id: botMsgId,
+      role: 'assistant',
+      content: '',
+      time: formatTime(),
+      isStreaming: true
+    };
+    setMessages((prev) => [...prev, botMsg]);
+
+    // Reenviar el mensaje del usuario para regenerar la respuesta
+    // Usar el contenido del mensaje del usuario original
+    await sendMessage(userMessage.content);
   };
 
   // Función para editar mensaje del usuario - solo carga en input sin eliminar
@@ -340,22 +378,10 @@ export default function ChatbotModal({ onClose }) {
     }
   };
 
-  // Función para limpiar mensajes de una sesión específica
-  const clearMessages = () => {
-    setMessages([initialMessage]);
-    if (sessionId) {
-      const storageKey = getMessagesStorageKey(sessionId);
-      localStorage.removeItem(storageKey);
-    } else {
-      localStorage.removeItem(MESSAGES_STORAGE_KEY);
-    }
-  };
-
   // Limpiar al cerrar (opcional - puedes comentar esto si quieres mantener los mensajes)
   useEffect(() => {
     return () => {
       // No resetear automáticamente para mantener persistencia
-      // reset();
     };
   }, []);
 
