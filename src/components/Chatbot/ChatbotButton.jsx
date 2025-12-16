@@ -1,21 +1,8 @@
 import React, {useState} from 'react';
 import ChatbotModal from './ChatbotModal'
-import ChatServices from '../../services/ChatServices';
 
 export default function ChatbotButton({ onClick }) {
     const [isOpen, setIsOpen]= useState(false);
-    async function handleTestClick() {
-        const question = '¿Qué son los Hemp Hearts?';
-        try {
-            const res = await ChatServices.askAI(question);
-            const answer = res.answer;
-            alert('IA: ' + answer);
-            console.log('Respuesta:', res);
-        } catch (err) {
-            alert('✗ Error: ' + err.message);
-            console.error(err);
-        }
-    }
 
     return ( <>
         <button
@@ -43,6 +30,6 @@ export default function ChatbotButton({ onClick }) {
                 <path d="M9 13v2" />
             </svg>
         </button>
-        {isOpen && <ChatbotModal nombre={handleTestClick} onClose={()=> setIsOpen(false)}/>}
+        {isOpen && <ChatbotModal onClose={()=> setIsOpen(false)}/>}
     </>);
 }

@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
-import ChatServices from '../../services/ChatServices';
+import AgUIService from '../../services/AgUIService';
+
+const STORAGE_KEY = 'goland-chat-conversation';
 
 function formatTime(date = new Date()) {
-  // Formato hh:mm AM/PM
   let hours = date.getHours();
   const minutes = date.getMinutes().toString().padStart(2, '0');
   const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -13,17 +14,45 @@ function formatTime(date = new Date()) {
   return `${hours}:${minutes} ${ampm}`;
 }
 
-export default function ChatbotModal({ onClose }) {
-  const [messages, setMessages] = useState([
-    {
-      id: '1',
-      role: 'assistant',
-      content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
-      time: formatTime()
+function loadConversationFromStorage() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const data = JSON.parse(stored);
+      return {
+        messages: data.messages || [
+          {
+            id: '1',
+            role: 'assistant',
+            content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
+            time: formatTime()
+          }
+        ],
+        threadId: data.threadId || null,
+      };
     }
-  ]);
+  } catch (error) {
+    console.error('Error loading conversation from storage:', error);
+  }
+  return {
+    messages: [
+      {
+        id: '1',
+        role: 'assistant',
+        content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
+        time: formatTime()
+      }
+    ],
+    threadId: null,
+  };
+}
+
+export default function ChatbotModal({ onClose }) {
+  const { messages: initialMessages, threadId: initialThreadId } = loadConversationFromStorage();
+  const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [threadId, setThreadId] = useState(initialThreadId);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -34,43 +63,82 @@ export default function ChatbotModal({ onClose }) {
     scrollToBottom();
   }, [messages]);
 
+  // Guardar conversación en localStorage cuando cambien messages o threadId
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        messages,
+        threadId,
+      }));
+    } catch (error) {
+      console.error('Error saving conversation to storage:', error);
+    }
+  }, [messages, threadId]);
+
   const handleSendMessage = async (e) => {
     e?.preventDefault?.();
     const text = input?.trim();
     if (!text) return;
 
-    const userMsg = {
-      id: `${Date.now()}-user`,
-      role: 'user',
-      content: text,
-      time: formatTime()
-    };
-    setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
 
     try {
-      const res = await ChatServices.askAI(text);
-      const answer = res?.answer ?? 'Lo siento, no tengo una respuesta para eso.';
+      const agUIMessages = [
+        ...messages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+        {
+          role: 'user',
+          content: text,
+        },
+      ];
 
-      const botMsg = {
-        id: `${Date.now()}-bot`,
-        role: 'assistant',
-        content: answer,
-        time: formatTime()
-      };
-      setMessages((prev) => [...prev, botMsg]);
+      await AgUIService.runAgent({
+        threadId,
+        messages: agUIMessages,
+        onThreadId: (newThreadId) => {
+          if (!threadId) {
+            setThreadId(newThreadId);
+          }
+        },
+        onMessagesChanged: (sdkMessages) => {
+          const uiMessages = sdkMessages.map((msg) => {
+            const existing = messages.find((m) => m.id === msg.id);
+            return {
+              id: msg.id,
+              role: msg.role,
+              content: typeof msg.content === 'string' ? msg.content : '',
+              time: existing?.time || formatTime(),
+            };
+          });
+          setMessages(uiMessages);
+        },
+        onRunFinished: () => {
+          setIsLoading(false);
+        },
+        onRunError: (errorEvent) => {
+          const errMsg = {
+            id: `${Date.now()}-error`,
+            role: 'assistant',
+            content: errorEvent.message || 'Hubo un error al obtener la respuesta.',
+            time: formatTime(),
+          };
+          setMessages((prev) => [...prev, errMsg]);
+          setIsLoading(false);
+        },
+      });
     } catch (err) {
       const errMsg = {
-        id: `${Date.now()}-bot-err`,
+        id: `${Date.now()}-error`,
         role: 'assistant',
         content: 'Hubo un error al obtener la respuesta.',
-        time: formatTime()
+        time: formatTime(),
       };
       setMessages((prev) => [...prev, errMsg]);
-      console.error(err);
-    } finally {
       setIsLoading(false);
+      console.error(err);
     }
   };
 
@@ -113,7 +181,7 @@ export default function ChatbotModal({ onClose }) {
             />
           ))}
 
-          {isLoading && (
+          {isLoading && messages[messages.length - 1]?.content === '' && (
             <div className="flex items-center space-x-2">
               <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg inline-flex items-center">
                 <span className="animate-pulse">●</span>
