@@ -24,7 +24,8 @@ export default function ChatMessage({
   const containerClass = `group relative flex ${isUser ? 'justify-end' : 'justify-start'} flex-col items-${isUser ? 'end' : 'start'}`;
 
   // Burbuja: estilos diferentes para user/bot
-  const bubbleBase = 'inline-block max-w-[72%] px-4 py-3 rounded-[12px]';
+  // break-words = overflow-wrap: break-word (solo corta palabras MUY largas que no caben)
+  const bubbleBase = 'max-w-[72%] px-4 py-3 rounded-[12px] break-words';
   const bubbleClass = isUser
     ? `${bubbleBase} bg-[#25D366] text-white rounded-br-[6px]`
     : `${bubbleBase} bg-white text-gray-900 border border-[rgba(0,0,0,0.06)] rounded-bl-[6px]`;
@@ -35,24 +36,25 @@ export default function ChatMessage({
     <div className={containerClass} style={{ gap: '0.25rem' }}>
       {/* Row that contains bubble for user messages, or bubble + actions for bot */}
       {isUser ? (
-        <div className="flex items-end gap-2">
+        <div className="flex items-center justify-end gap-2 min-w-0 w-full">
+          {/* Lápiz a la izquierda de la burbuja */}
           <button
             onClick={() => onEdit && onEdit(id)}
             aria-label="Editar mensaje"
             title="Editar"
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-gray-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-gray-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 flex-shrink-0"
             style={{ background: 'transparent', border: 'none' }}
             type="button"
           >
             <Pencil size={16} color="#374151" />
           </button>
 
-          <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          <div className={`${bubbleClass} min-w-0`}>
             {text}
           </div>
         </div>
       ) : (
-        <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+        <div className={`${bubbleClass} min-w-0`}>
           <div>{text}</div>
 
           {/* Iconos dentro de la burbuja (debajo del texto) */}
