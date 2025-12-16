@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import AgUIService from '../../services/AgUIService';
+import { RotateCcw } from 'lucide-react';
 
 const STORAGE_KEY = 'goland-chat-conversation';
 
@@ -54,6 +55,83 @@ export default function ChatbotModal({ onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [threadId, setThreadId] = useState(initialThreadId);
   const messagesEndRef = useRef(null);
+  const [copiedMessageId, setCopiedMessageId] = useState(null);
+  const [reloadingMessageId, setReloadingMessageId] = useState(null);
+
+  const getSdkMessageId = (msg) => msg?.id ?? msg?.messageId ?? msg?.metadata?.id ?? null;
+  const getWelcomeConversation = () => ({
+    messages: [
+      {
+        id: '1',
+        role: 'assistant',
+        content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
+        time: formatTime(),
+      },
+    ],
+    threadId: null,
+  });
+
+  const handleNewConversation = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.error('Error clearing conversation from storage:', error);
+    }
+
+    const fresh = getWelcomeConversation();
+    setIsLoading(false);
+    setCopiedMessageId(null);
+    setReloadingMessageId(null);
+    setThreadId(fresh.threadId);
+    setMessages(fresh.messages);
+  };
+
+  const runAgentWithMessages = async ({ messagesForAgent, forceNewThread = false }) => {
+    try {
+      await AgUIService.runAgent({
+        threadId: forceNewThread ? null : threadId,
+      messages: messagesForAgent,
+      onThreadId: (newThreadId) => {
+        // Si forzamos thread nuevo, siempre actualizamos. Si no, solo si todavía es null.
+        setThreadId((prev) => {
+          if (forceNewThread) return newThreadId;
+          return prev || newThreadId;
+        });
+      },
+      onMessagesChanged: (sdkMessages) => {
+        // Importante: usar el estado previo para no quedar con "messages" viejo (closure)
+        setMessages((prev) =>
+          sdkMessages.map((msg) => {
+            const normalizedId = getSdkMessageId(msg) || `${msg?.role || 'msg'}-${crypto?.randomUUID?.() || Date.now()}`;
+            const existing = prev.find((m) => m.id === normalizedId);
+            return {
+              id: normalizedId,
+              role: msg.role,
+              content: typeof msg.content === 'string' ? msg.content : '',
+              time: existing?.time || formatTime(),
+              feedback: existing?.feedback || null,
+            };
+          })
+        );
+      },
+      onRunFinished: () => {
+        setIsLoading(false);
+      },
+      onRunError: (errorEvent) => {
+        const errMsg = {
+          id: `${Date.now()}-error`,
+          role: 'assistant',
+          content: errorEvent.message || 'Hubo un error al obtener la respuesta.',
+          time: formatTime(),
+        };
+        setMessages((prev) => [...prev, errMsg]);
+        setIsLoading(false);
+      },
+      });
+    } finally {
+      setReloadingMessageId(null);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -95,40 +173,7 @@ export default function ChatbotModal({ onClose }) {
         },
       ];
 
-      await AgUIService.runAgent({
-        threadId,
-        messages: agUIMessages,
-        onThreadId: (newThreadId) => {
-          if (!threadId) {
-            setThreadId(newThreadId);
-          }
-        },
-        onMessagesChanged: (sdkMessages) => {
-          const uiMessages = sdkMessages.map((msg) => {
-            const existing = messages.find((m) => m.id === msg.id);
-            return {
-              id: msg.id,
-              role: msg.role,
-              content: typeof msg.content === 'string' ? msg.content : '',
-              time: existing?.time || formatTime(),
-            };
-          });
-          setMessages(uiMessages);
-        },
-        onRunFinished: () => {
-          setIsLoading(false);
-        },
-        onRunError: (errorEvent) => {
-          const errMsg = {
-            id: `${Date.now()}-error`,
-            role: 'assistant',
-            content: errorEvent.message || 'Hubo un error al obtener la respuesta.',
-            time: formatTime(),
-          };
-          setMessages((prev) => [...prev, errMsg]);
-          setIsLoading(false);
-        },
-      });
+      await runAgentWithMessages({ messagesForAgent: agUIMessages, forceNewThread: false });
     } catch (err) {
       const errMsg = {
         id: `${Date.now()}-error`,
@@ -137,6 +182,68 @@ export default function ChatbotModal({ onClose }) {
         time: formatTime(),
       };
       setMessages((prev) => [...prev, errMsg]);
+      setIsLoading(false);
+      console.error(err);
+    }
+  };
+
+  const handleCopy = async (messageId) => {
+    const msg = messages.find((m) => m.id === messageId);
+    const textToCopy = msg?.content ?? '';
+    if (!textToCopy) return;
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+    } catch {
+      // Fallback simple
+      const textarea = document.createElement('textarea');
+      textarea.value = textToCopy;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+
+    setCopiedMessageId(messageId);
+    window.setTimeout(() => {
+      setCopiedMessageId((prev) => (prev === messageId ? null : prev));
+    }, 900);
+  };
+
+  const setFeedback = (messageId, feedback) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, feedback } : m))
+    );
+  };
+
+  const handleReload = async (assistantMessageId) => {
+    if (isLoading) return;
+    // Regenerar: recorta el historial hasta el último mensaje de usuario previo a ese assistant
+    const idx = messages.findIndex((m) => m.id === assistantMessageId);
+    if (idx === -1) return;
+
+    let lastUserIdx = -1;
+    for (let i = idx; i >= 0; i--) {
+      if (messages[i]?.role === 'user') {
+        lastUserIdx = i;
+        break;
+      }
+    }
+    if (lastUserIdx === -1) return;
+
+    const kept = messages.slice(0, lastUserIdx + 1);
+    const agentMessages = kept.map((m) => ({ role: m.role, content: m.content }));
+
+    // Reset del thread: nuevo run, pero con el mismo historial “hasta el user”
+    try {
+      setIsLoading(true);
+      setThreadId(null);
+      setMessages(kept);
+      setReloadingMessageId(assistantMessageId);
+      await runAgentWithMessages({ messagesForAgent: agentMessages, forceNewThread: true });
+    } catch (err) {
       setIsLoading(false);
       console.error(err);
     }
@@ -161,13 +268,25 @@ export default function ChatbotModal({ onClose }) {
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="hover:bg-green-700 p-1 rounded transition-colors text-black"
-            aria-label="Close Chatbot"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleNewConversation}
+              className="flex items-center hover:bg-green-200 p-2 rounded transition-colors text-black"
+              aria-label="Nueva conversación"
+              title="Nueva conversación"
+              type="button"
+            >
+              <RotateCcw size={14} />
+            </button>
+            <button
+              onClick={onClose}
+              className="hover:bg-green-700 p-1 rounded transition-colors text-black"
+              aria-label="Close Chatbot"
+              type="button"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -175,9 +294,17 @@ export default function ChatbotModal({ onClose }) {
           {messages.map((msg) => (
             <ChatMessage
               key={msg.id}
+              id={msg.id}
               type={msg.role === 'user' ? 'user' : 'bot'}
               text={msg.content}
               time={msg.time}
+              feedback={msg.feedback}
+              copied={copiedMessageId === msg.id}
+              reloading={reloadingMessageId === msg.id}
+              onCopy={handleCopy}
+              onThumbsUp={(id) => setFeedback(id, 'up')}
+              onThumbsDown={(id) => setFeedback(id, 'down')}
+              onReload={handleReload}
             />
           ))}
 
