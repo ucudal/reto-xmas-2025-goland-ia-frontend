@@ -1,0 +1,29 @@
+title = "Gitleaks configuration for Goland Frontend"
+
+[extend]
+# Usar la configuración por defecto de gitleaks
+useDefault = true
+
+[allowlist]
+description = "Allowlist para excluir falsos positivos comunes"
+paths = [
+  '''k8s/.*\.yaml''',
+  '''k8s/.*\.yml''',
+  '''\.github/workflows/.*\.yml''',
+  '''\.github/workflows/.*\.yaml''',
+  '''Dockerfile''',
+  '''docker-compose\.yml''',
+  '''\.dockerignore''',
+  '''scripts/.*\.sh''',
+  '''sonar-project\.properties''',
+]
+
+# Excluir patrones específicos que son falsos positivos
+regexes = [
+  '''crretoxmas2024\.azurecr\.io''',
+  '''goland-ia-frontend''',
+  '''goland-backend''',
+  '''reto-ucu\.net''',
+  '''kubernetes-main-node\.reto-ucu\.net''',
+  '''sonarqube\.reto-ucu\.net''',
+]
