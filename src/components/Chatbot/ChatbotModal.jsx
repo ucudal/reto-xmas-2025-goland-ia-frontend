@@ -323,19 +323,53 @@ export default function ChatbotModal({ onClose }) {
     await sendMessage(userMessage.content);
   };
 
-  // Función para editar mensaje del usuario - solo carga en input sin eliminar
-  const handleEdit = (messageId) => {
+  // Función para editar mensaje del usuario - edición inline
+  // Elimina la respuesta del bot y regenera con el nuevo texto
+  const handleEdit = async (messageId, newText) => {
     const message = messages.find(msg => msg.id === messageId);
-    if (message && message.role === 'user' && message.content) {
-      // Solo poner el mensaje en el input para editar
-      // NO eliminar mensajes anteriores
-      setInput(message.content);
-      // Opcional: hacer scroll al input
-      setTimeout(() => {
-        const inputElement = document.querySelector('input[type="text"]');
-        inputElement?.focus();
-      }, 100);
-    }
+    if (!message || message.role !== 'user' || !newText || newText.trim() === '') return;
+
+    // Actualizar el texto del mensaje editado
+    setMessages((prev) => {
+      const updated = [...prev];
+      const messageIndex = updated.findIndex(msg => msg.id === messageId);
+      
+      if (messageIndex !== -1) {
+        updated[messageIndex] = {
+          ...updated[messageIndex],
+          content: newText.trim()
+        };
+      }
+      
+      return updated;
+    });
+
+    // Encontrar el índice del mensaje editado
+    const messageIndex = messages.findIndex(msg => msg.id === messageId);
+    if (messageIndex === -1) return;
+
+    // Eliminar todas las respuestas del bot posteriores a este mensaje
+    setMessages((prev) => {
+      // Mantener todos los mensajes hasta el mensaje editado (incluido)
+      // Eliminar desde el siguiente mensaje en adelante
+      return prev.slice(0, messageIndex + 1);
+    });
+
+    // Crear nuevo mensaje placeholder para el asistente
+    const botMsgId = `${Date.now()}-bot`;
+    streamingMessageIdRef.current = botMsgId;
+    
+    const botMsg = {
+      id: botMsgId,
+      role: 'assistant',
+      content: '',
+      time: formatTime(),
+      isStreaming: true
+    };
+    setMessages((prev) => [...prev, botMsg]);
+
+    // Reenviar el mensaje editado para regenerar la respuesta
+    await sendMessage(newText.trim());
   };
 
   // Función para like (feedback positivo)
