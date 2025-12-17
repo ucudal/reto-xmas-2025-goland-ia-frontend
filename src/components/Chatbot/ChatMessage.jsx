@@ -1,5 +1,6 @@
 import React from 'react';
 import { RotateCcw, Copy, ThumbsUp, ThumbsDown, Pencil, File, FileText, Image, FileCode, FileSpreadsheet } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 // Función para obtener icono según tipo de archivo
 function getFileIcon(fileType) {
@@ -79,8 +80,10 @@ export default function ChatMessage({
           </div>
         </div>
       ) : (
-        <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap' }}>
-          <div>{text}</div>
+        <div className={bubbleClass}>
+          <ReactMarkdown          >
+            {text}
+          </ReactMarkdown>
 
           <div className="mt-2 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
