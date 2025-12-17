@@ -14,10 +14,12 @@ export default function ChatMessage({
   reloading,
   onReload,
   onEdit,
+  actionsDisabled,
 }) {
   const isUser = type === 'user';
   const iconBtnBase =
     'p-1.5 rounded transition-all duration-150 cursor-pointer hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2';
+  const iconBtnDisabled = 'opacity-40 cursor-not-allowed hover:scale-100';
   const containerClass = `group relative flex ${isUser ? 'justify-end' : 'justify-start'} flex-col items-${isUser ? 'end' : 'start'}`;
 
   // Burbuja: estilos diferentes para user/bot
@@ -38,7 +40,8 @@ export default function ChatMessage({
             onClick={() => onEdit && onEdit(id)}
             aria-label="Editar mensaje"
             title="Editar"
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-gray-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 flex-shrink-0"
+            disabled={actionsDisabled}
+            className={`opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 flex-shrink-0 ${actionsDisabled ? iconBtnDisabled : 'cursor-pointer'}`}
             style={{ background: 'transparent', border: 'none' }}
             type="button"
           >
@@ -57,7 +60,8 @@ export default function ChatMessage({
             <button
               onClick={() => onReload && onReload(id)}
               aria-label="Regenerar"
-              className={`${iconBtnBase} hover:bg-gray-100`}
+              disabled={actionsDisabled}
+              className={`${iconBtnBase} hover:bg-gray-100 ${actionsDisabled ? iconBtnDisabled : ''}`}
               style={{ background: 'transparent', border: 'none' }}
               type="button"
             >
@@ -67,7 +71,8 @@ export default function ChatMessage({
             <button
               onClick={() => onCopy && onCopy(id)}
               aria-label="Copiar"
-              className={`${iconBtnBase} ${copied ? 'bg-green-50' : 'hover:bg-gray-100'}`}
+              disabled={actionsDisabled}
+              className={`${iconBtnBase} ${copied ? 'bg-green-50' : 'hover:bg-gray-100'} ${actionsDisabled ? iconBtnDisabled : ''}`}
               style={{ background: 'transparent', border: 'none' }}
               type="button"
             >
@@ -78,7 +83,8 @@ export default function ChatMessage({
               onClick={() => onThumbsUp && onThumbsUp(id)}
               aria-label="Me gusta"
               aria-pressed={feedback === 'up'}
-              className={`${iconBtnBase} ${feedback === 'up' ? 'bg-green-50' : 'hover:bg-gray-100'}`}
+              disabled={actionsDisabled}
+              className={`${iconBtnBase} ${feedback === 'up' ? 'bg-green-50' : 'hover:bg-gray-100'} ${actionsDisabled ? iconBtnDisabled : ''}`}
               style={{ background: 'transparent', border: 'none' }}
               type="button"
             >
@@ -89,7 +95,8 @@ export default function ChatMessage({
               onClick={() => onThumbsDown && onThumbsDown(id)}
               aria-label="No me gusta"
               aria-pressed={feedback === 'down'}
-              className={`${iconBtnBase} ${feedback === 'down' ? 'bg-red-50' : 'hover:bg-gray-100'}`}
+              disabled={actionsDisabled}
+              className={`${iconBtnBase} ${feedback === 'down' ? 'bg-red-50' : 'hover:bg-gray-100'} ${actionsDisabled ? iconBtnDisabled : ''}`}
               style={{ background: 'transparent', border: 'none' }}
               type="button"
             >
