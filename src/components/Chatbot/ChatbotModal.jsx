@@ -60,6 +60,9 @@ export default function ChatbotModal({ onClose }) {
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [draftBeforeEdit, setDraftBeforeEdit] = useState('');
   const cancelRunRef = useRef(false);
+  const [agentStatus, setAgentStatus] = useState(null);
+// null | 'thinking' | 'searching' | 'writing'
+
 
   const getSdkMessageId = (msg) => msg?.id ?? msg?.messageId ?? msg?.metadata?.id ?? null;
   const getWelcomeConversation = () => ({
@@ -94,53 +97,93 @@ export default function ChatbotModal({ onClose }) {
   const runAgentWithMessages = async ({ messagesForAgent, forceNewThread = false }) => {
     try {
       cancelRunRef.current = false;
+      setIsLoading(true);
+      setAgentStatus('thinking');
+  
       await AgUIService.runAgent({
         threadId: forceNewThread ? null : threadId,
-      messages: messagesForAgent,
-      onThreadId: (newThreadId) => {
-        // Si forzamos thread nuevo, siempre actualizamos. Si no, solo si todavía es null.
-        setThreadId((prev) => {
-          if (forceNewThread) return newThreadId;
-          return prev || newThreadId;
-        });
-      },
-      onMessagesChanged: (sdkMessages) => {
-        if (cancelRunRef.current) return;
-        // Importante: usar el estado previo para no quedar con "messages" viejo (closure)
-        setMessages((prev) =>
-          sdkMessages.map((msg) => {
-            const normalizedId = getSdkMessageId(msg) || `${msg?.role || 'msg'}-${crypto?.randomUUID?.() || Date.now()}`;
-            const existing = prev.find((m) => m.id === normalizedId);
-            return {
-              id: normalizedId,
-              role: msg.role,
-              content: typeof msg.content === 'string' ? msg.content : '',
-              time: existing?.time || formatTime(),
-              feedback: existing?.feedback || null,
-            };
-          })
-        );
-      },
-      onRunFinished: () => {
-        if (cancelRunRef.current) return;
-        setIsLoading(false);
-      },
-      onRunError: (errorEvent) => {
-        if (cancelRunRef.current) return;
-        const errMsg = {
-          id: `${Date.now()}-error`,
-          role: 'assistant',
-          content: errorEvent.message || 'Hubo un error al obtener la respuesta.',
-          time: formatTime(),
-        };
-        setMessages((prev) => [...prev, errMsg]);
-        setIsLoading(false);
-      },
+        messages: messagesForAgent,
+  
+        // 🔹 THREAD
+        onThreadId: (newThreadId) => {
+          setThreadId((prev) => {
+            if (forceNewThread) return newThreadId;
+            return prev || newThreadId;
+          });
+        },
+  
+        // 🔹 STEPS (AG-UI CORE)
+        onStepStarted: ( event ) => {
+          if (cancelRunRef.current) return;
+        
+          const stepName = event?.stepName;
+          console.log('STEP STARTED:', stepName);
+        
+          if (stepName === 'reasoning') {
+            setAgentStatus('thinking');
+          } else if (stepName?.startsWith('tool')) {
+            setAgentStatus('searching');
+          } else if (stepName === 'response') {
+            setAgentStatus('writing');
+          }
+        },        
+ 
+        onStepFinished: () => {
+          if (cancelRunRef.current) return;
+          
+        },
+  
+        // 🔹 MENSAJES
+        onMessagesChanged: (sdkMessages) => {
+          if (cancelRunRef.current) return;
+  
+          setMessages((prev) =>
+            sdkMessages.map((msg) => {
+              const normalizedId =
+                getSdkMessageId(msg) ||
+                `${msg?.role || 'msg'}-${crypto?.randomUUID?.() || Date.now()}`;
+  
+              const existing = prev.find((m) => m.id === normalizedId);
+  
+              return {
+                id: normalizedId,
+                role: msg.role,
+                content: typeof msg.content === 'string' ? msg.content : '',
+                time: existing?.time || formatTime(),
+                feedback: existing?.feedback || null,
+              };
+            })
+          );
+        },
+  
+        // 🔹 RUN FINISHED
+        onRunFinished: () => {
+          if (cancelRunRef.current) return;
+          setIsLoading(false);
+          setAgentStatus(null);
+        },
+  
+        // 🔹 ERROR
+        onRunError: (errorEvent) => {
+          if (cancelRunRef.current) return;
+  
+          const errMsg = {
+            id: `${Date.now()}-error`,
+            role: 'assistant',
+            content: errorEvent?.message || 'Hubo un error al obtener la respuesta.',
+            time: formatTime(),
+          };
+  
+          setMessages((prev) => [...prev, errMsg]);
+          setIsLoading(false);
+          setAgentStatus(null);
+        },
       });
     } finally {
       setReloadingMessageId(null);
     }
   };
+  
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -167,6 +210,7 @@ export default function ChatbotModal({ onClose }) {
     if (isLoading) {
       cancelRunRef.current = true;
       setIsLoading(false);
+      setAgentStatus(null);
       return;
     }
 
@@ -174,7 +218,7 @@ export default function ChatbotModal({ onClose }) {
     if (!text) return;
 
     setInput('');
-    setIsLoading(true);
+  
 
     try {
       // Modo edición: reemplaza el mensaje user editado, recorta historial y re-genera respuesta
@@ -378,15 +422,15 @@ export default function ChatbotModal({ onClose }) {
             />
           ))}
 
-          {isLoading && messages[messages.length - 1]?.content === '' && (
-            <div className="flex items-center space-x-2">
-              <div className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg inline-flex items-center">
-                <span className="animate-pulse">●</span>
-                <span className="animate-pulse delay-150">●</span>
-                <span className="animate-pulse delay-300">●</span>
-              </div>
+          {agentStatus && (
+            <div className="flex items-center space-x-2 text-xs text-gray-500">
+              {agentStatus === 'thinking' && 'Pensando…'}
+              {agentStatus === 'searching' && 'Buscando información…'}
+              {agentStatus === 'writing' && 'Escribiendo…'}
+              <span className="animate-pulse">● ● ●</span>
             </div>
           )}
+
 
           {/* Sugerencias (solo si aún no hay mensajes del usuario) */}
           {!messages.some((m) => m.role === 'user') && (
