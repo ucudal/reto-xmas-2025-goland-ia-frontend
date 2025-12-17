@@ -55,6 +55,12 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
           SONAR_HOST_URL: https://sonarqube.reto-ucu.net
           SONAR_PROJECT_KEY: goland-frontend
+        with:
+          args: >
+            -Dsonar.branch.name=${{ github.head_ref }}
+            -Dsonar.pullrequest.base=${{ github.base_ref }}
+            -Dsonar.pullrequest.branch=${{ github.head_ref }}
+            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
 
   trivy-scan:
     runs-on: ubuntu-latest
