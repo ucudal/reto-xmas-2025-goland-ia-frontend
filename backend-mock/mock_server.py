@@ -10,7 +10,9 @@ from ag_ui.core import (
     RunFinishedEvent,
     TextMessageStartEvent,
     TextMessageContentEvent,
-    TextMessageEndEvent
+    TextMessageEndEvent,
+    StepStartedEvent,
+    StepFinishedEvent
 )
 
 app = Flask(__name__)
@@ -58,41 +60,78 @@ def get_mock_response(user_message):
     return MOCK_RESPONSES["default"]["response"]
 
 def generate_events(payload):
-    # Extraer datos del payload
     thread_id = payload.get("threadId") or str(uuid.uuid4())
     run_id = str(uuid.uuid4())
     message_id = str(uuid.uuid4())
-    
-    # Obtener el último mensaje del usuario
+
     messages = payload.get("messages", [])
     user_message = ""
-    if messages:
-        # Buscar el último mensaje del usuario (puede no ser el último en la lista)
-        for msg in reversed(messages):
-            if msg.get("role") == "user":
-                user_message = msg.get("content", "")
-                break
-    
-    # Obtener respuesta mock
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            user_message = msg.get("content", "")
+            break
+
     response_text = get_mock_response(user_message)
-    
+
+    thinking_step = str(uuid.uuid4())
+    search_step = str(uuid.uuid4())
+    response_step = str(uuid.uuid4())
+
     events = [
         RunStartedEvent(thread_id=thread_id, run_id=run_id),
-        TextMessageStartEvent(message_id=message_id, role="assistant")
+
+        # 🧠 THINKING
+        StepStartedEvent(
+            step_id=thinking_step,
+            stepName="reasoning"
+        ),
+        StepFinishedEvent(
+            step_id=thinking_step,
+            stepName="reasoning"
+        ),
+
+        # 🔍 SEARCH
+        StepStartedEvent(
+            step_id=search_step,
+            stepName="tool:mock_search"
+        ),
+        StepFinishedEvent(
+            step_id=search_step,
+            stepName="tool:mock_search"
+        ),
+
+        # ✍️ WRITING
+        StepStartedEvent(
+            step_id=response_step,
+            stepName="response"
+        ),
+        TextMessageStartEvent(
+            message_id=message_id,
+            role="assistant"
+        ),
     ]
-    
-    # Simular streaming: dividir la respuesta en chunks
-    chunk_size = 3
-    for i in range(0, len(response_text), chunk_size):
-        chunk = response_text[i:i + chunk_size]
-        events.append(TextMessageContentEvent(message_id=message_id, delta=chunk))
-    
+
+    for i in range(0, len(response_text), 3):
+        events.append(
+            TextMessageContentEvent(
+                message_id=message_id,
+                delta=response_text[i:i + 3]
+            )
+        )
+
     events.extend([
         TextMessageEndEvent(message_id=message_id),
-        RunFinishedEvent(thread_id=thread_id, run_id=run_id)
+        StepFinishedEvent(
+            step_id=response_step,
+            stepName="response"
+        ),
+        RunFinishedEvent(thread_id=thread_id, run_id=run_id),
     ])
-    
+
     return events
+
+
+
 
 @app.route('/health', methods=['GET'])
 def health():

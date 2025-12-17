@@ -69,6 +69,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [draftBeforeEdit, setDraftBeforeEdit] = useState('');
   const cancelRunRef = useRef(false);
+  const [agentStatus, setAgentStatus] = useState(null); // null | 'thinking' | 'searching' | 'writing'
   const [runStatus, setRunStatus] = useState('idle'); // idle | loading | stopped | error
   const [errorText, setErrorText] = useState(null);
   const lastRunRef = useRef(null); // { messagesForAgent, forceNewThread, label }
@@ -166,57 +167,87 @@ export default function ChatbotModal({ onClose, visible = true }) {
       cancelRunRef.current = false;
       setErrorText(null);
       setRunStatus('loading');
+      setAgentStatus('thinking');
+      setIsLoading(true);
+
       await AgUIService.runAgent({
         threadId: forceNewThread ? null : threadId,
-      messages: messagesForAgent,
-      onThreadId: (newThreadId) => {
-        // Si forzamos thread nuevo, siempre actualizamos. Si no, solo si todavía es null.
-        setThreadId((prev) => {
-          if (forceNewThread) return newThreadId;
-          return prev || newThreadId;
-        });
-      },
-      onMessagesChanged: (sdkMessages) => {
-        if (cancelRunRef.current) return;
-        // Importante: usar el estado previo para no quedar con "messages" viejo (closure)
-        setMessages((prev) =>
-          sdkMessages.map((msg) => {
-            const normalizedId = getSdkMessageId(msg) || `${msg?.role || 'msg'}-${crypto?.randomUUID?.() || Date.now()}`;
-            const existing = prev.find((m) => m.id === normalizedId);
-            return {
-              id: normalizedId,
-              role: msg.role,
-              content: typeof msg.content === 'string' ? msg.content : '',
-              time: existing?.time || formatTime(),
-              feedback: existing?.feedback || null,
-            };
-          })
-        );
-      },
-      onRunFinished: () => {
-        if (cancelRunRef.current) return;
-        setIsLoading(false);
-        setRunStatus('idle');
-      },
-      onRunError: (errorEvent) => {
-        if (cancelRunRef.current) return;
-        setRunStatus('error');
-        setErrorText(toUserFriendlyError(errorEvent));
-        const errMsg = {
-          id: `${Date.now()}-error`,
-          role: 'assistant',
-          content: 'Hubo un error al obtener la respuesta.',
-          time: formatTime(),
-        };
-        setMessages((prev) => [...prev, errMsg]);
-        setIsLoading(false);
-      },
+        messages: messagesForAgent,
+
+        onThreadId: (newThreadId) => {
+          // Si forzamos thread nuevo, siempre actualizamos. Si no, solo si todavía es null.
+          setThreadId((prev) => {
+            if (forceNewThread) return newThreadId;
+            return prev || newThreadId;
+          });
+        },
+
+        // 🔹 STEPS (AG-UI CORE)
+        onStepStarted: (event) => {
+          if (cancelRunRef.current) return;
+
+          const stepName = event?.stepName;
+          console.log('STEP STARTED:', stepName);
+
+          if (stepName === 'reasoning') {
+            setAgentStatus('thinking');
+          } else if (stepName?.startsWith('tool')) {
+            setAgentStatus('searching');
+          } else if (stepName === 'response') {
+            setAgentStatus('writing');
+          }
+        },
+
+        onStepFinished: () => {
+          if (cancelRunRef.current) return;
+        },
+
+        onMessagesChanged: (sdkMessages) => {
+          if (cancelRunRef.current) return;
+          // Importante: usar el estado previo para no quedar con "messages" viejo (closure)
+          setMessages((prev) =>
+            sdkMessages.map((msg) => {
+              const normalizedId = getSdkMessageId(msg) || `${msg?.role || 'msg'}-${crypto?.randomUUID?.() || Date.now()}`;
+              const existing = prev.find((m) => m.id === normalizedId);
+              return {
+                id: normalizedId,
+                role: msg.role,
+                content: typeof msg.content === 'string' ? msg.content : '',
+                time: existing?.time || formatTime(),
+                feedback: existing?.feedback || null,
+              };
+            })
+          );
+        },
+
+        onRunFinished: () => {
+          if (cancelRunRef.current) return;
+          setIsLoading(false);
+          setRunStatus('idle');
+          setAgentStatus(null);
+        },
+
+        onRunError: (errorEvent) => {
+          if (cancelRunRef.current) return;
+          setRunStatus('error');
+          setErrorText(toUserFriendlyError(errorEvent));
+          const errMsg = {
+            id: `${Date.now()}-error`,
+            role: 'assistant',
+            content: 'Hubo un error al obtener la respuesta.',
+            time: formatTime(),
+          };
+          setMessages((prev) => [...prev, errMsg]);
+          setIsLoading(false);
+          setAgentStatus(null);
+        },
       });
     } catch (err) {
       if (!cancelRunRef.current) {
         setRunStatus('error');
         setErrorText(toUserFriendlyError(err));
         setIsLoading(false);
+        setAgentStatus(null);
       }
       console.error('AG-UI run error (debug):', err);
       throw err;
@@ -224,6 +255,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
       setReloadingMessageId(null);
     }
   };
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -453,9 +485,8 @@ export default function ChatbotModal({ onClose, visible = true }) {
 
         {(runStatus === 'error' || runStatus === 'stopped') && (
           <div
-            className={`px-4 py-2 text-xs flex items-center justify-between border-b ${
-              runStatus === 'error' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-yellow-50 text-yellow-800 border-yellow-100'
-            }`}
+            className={`px-4 py-2 text-xs flex items-center justify-between border-b ${runStatus === 'error' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-yellow-50 text-yellow-800 border-yellow-100'
+              }`}
           >
             <span>
               {runStatus === 'error'
@@ -509,7 +540,11 @@ export default function ChatbotModal({ onClose, visible = true }) {
             <div className="flex justify-start">
               <div className="bg-white border border-[rgba(0,0,0,0.06)] text-gray-800 px-3 py-2 rounded-[12px] rounded-bl-[6px] shadow-sm max-w-[72%]">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-gray-600">Pensando</span>
+                  <span className="text-xs font-medium text-gray-600">
+                    {agentStatus === 'searching' ? 'Buscando...' :
+                      agentStatus === 'writing' ? 'Escribiendo...' :
+                        'Pensando...'}
+                  </span>
                   <span className="inline-flex items-center gap-1" aria-label="Pensando">
                     <span className="w-1 h-1 bg-gray-500 rounded-full animate-bounce" />
                     <span className="w-1 h-1 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '120ms' }} />
@@ -519,6 +554,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
               </div>
             </div>
           )}
+
 
           {/* Sugerencias (solo si aún no hay mensajes del usuario) */}
           {!messages.some((m) => m.role === 'user') && (
