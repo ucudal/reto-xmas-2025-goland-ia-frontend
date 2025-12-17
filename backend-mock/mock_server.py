@@ -20,27 +20,27 @@ CORS(app)  # Permitir CORS para desarrollo
 MOCK_RESPONSES = {
     "hola": {
         "keywords": ["hola", "buenos días", "buenas tardes", "buenas noches", "hi", "hello", "saludos"],
-        "response": "¡Hola! Soy el asistente de Goland. ¿En qué puedo ayudarte hoy?"
+        "response": "**¡Hola! Soy el asistente de Goland. ¿En qué puedo ayudarte hoy?**"
     },
     "productos": {
         "keywords": ["producto", "productos", "qué tienen", "qué venden", "catálogo", "qué ofrecen"],
-        "response": "Tenemos una amplia variedad de productos a base de cáñamo: semillas, aceites, proteínas y más. ¿Te interesa alguno en particular?"
+        "response": "**Tenemos una amplia variedad de productos a base de cáñamo: semillas, aceites, proteínas y más. ¿Te interesa alguno en particular?**"
     },
     "precio": {
         "keywords": ["precio", "precios", "cuánto cuesta", "costo", "valor", "tarifa"],
-        "response": "Los precios varían según el producto. Te recomiendo visitar nuestra tienda online en shop.goland-group.com para ver los precios actualizados."
+        "response": "**Los precios varían según el producto. Te recomiendo visitar nuestra tienda online en shop.goland-group.com para ver los precios actualizados.**"
     },
     "ingredientes": {
         "keywords": ["ingrediente", "ingredientes", "qué contiene", "de qué está hecho", "composición", "natural"],
-        "response": "Nuestros productos están hechos con ingredientes 100% naturales, sin conservantes artificiales, veganos y sin gluten. ¿Quieres saber más sobre algún producto específico?"
+        "response": "**Nuestros productos están hechos con ingredientes 100% naturales, sin conservantes artificiales, veganos y sin gluten. ¿Quieres saber más sobre algún producto específico?**"
     },
     "envio": {
         "keywords": ["envío", "envio", "entrega", "shipping", "delivery", "enviar", "cuánto tarda"],
-        "response": "Realizamos envíos a todo Uruguay. El tiempo de entrega depende de tu ubicación, generalmente entre 3 a 7 días hábiles."
+        "response": "**Realizamos envíos a todo Uruguay. El tiempo de entrega depende de tu ubicación, generalmente entre 3 a 7 días hábiles.**"
     },
     "default": {
         "keywords": [],
-        "response": "Gracias por tu consulta. Nuestro equipo está aquí para ayudarte. ¿Hay algo más en lo que pueda asistirte?"
+        "response": "**Gracias por tu consulta. Nuestro equipo está aquí para ayudarte. ¿Hay algo más en lo que pueda asistirte?**"
     }
 }
 
@@ -123,7 +123,7 @@ def agent():
             headers={
                 'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive',
-                'X-Accel-Buffering': 'no'  
+                'X-Accel-Buffering': 'no'
             }
         )
     

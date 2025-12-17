@@ -1,5 +1,7 @@
 import React from 'react';
 import { RotateCcw, Copy, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+
 
 export default function ChatMessage({
   id,
@@ -50,8 +52,10 @@ export default function ChatMessage({
           </div>
         </div>
       ) : (
-        <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap' }}>
-          <div>{text}</div>
+        <div className={bubbleClass}>
+          <ReactMarkdown          >
+            {text}
+          </ReactMarkdown>
 
           <div className="mt-2 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
