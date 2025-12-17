@@ -27,8 +27,8 @@ function loadConversationFromStorage() {
             id: '1',
             role: 'assistant',
             content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
-            time: formatTime()
-          }
+            time: formatTime(),
+          },
         ],
         threadId: data.threadId || null,
       };
@@ -42,8 +42,8 @@ function loadConversationFromStorage() {
         id: '1',
         role: 'assistant',
         content: '¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte?',
-        time: formatTime()
-      }
+        time: formatTime(),
+      },
     ],
     threadId: null,
   };
@@ -68,6 +68,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
   const [reloadingMessageId, setReloadingMessageId] = useState(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [draftBeforeEdit, setDraftBeforeEdit] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const cancelRunRef = useRef(false);
   const [agentStatus, setAgentStatus] = useState(null); // null | 'thinking' | 'searching' | 'writing'
   const [runStatus, setRunStatus] = useState('idle'); // idle | loading | stopped | error
@@ -107,7 +108,8 @@ export default function ChatbotModal({ onClose, visible = true }) {
     return 'Algo salió mal. Probá de nuevo.';
   };
 
-  const getSdkMessageId = (msg) => msg?.id ?? msg?.messageId ?? msg?.metadata?.id ?? null;
+  const getSdkMessageId = (msg) =>
+    msg?.id ?? msg?.messageId ?? msg?.metadata?.id ?? null;
   const getWelcomeConversation = () => ({
     messages: [
       {
@@ -135,6 +137,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
     setReloadingMessageId(null);
     setEditingMessageId(null);
     setDraftBeforeEdit('');
+    setSelectedFiles([]);
     setThreadId(fresh.threadId);
     setMessages(fresh.messages);
   };
@@ -268,10 +271,13 @@ export default function ChatbotModal({ onClose, visible = true }) {
   // Guardar conversación en localStorage cuando cambien messages o threadId
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        messages,
-        threadId,
-      }));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          messages,
+          threadId,
+        })
+      );
     } catch (error) {
       console.error('Error saving conversation to storage:', error);
     }
@@ -311,7 +317,10 @@ export default function ChatbotModal({ onClose, visible = true }) {
           i === editIdx ? { ...m, content: text, time: formatTime() } : m
         );
         const kept = updated.slice(0, editIdx + 1);
-        const agentMessages = kept.map((m) => ({ role: m.role, content: m.content }));
+        const agentMessages = kept.map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
 
         // Reset del thread: conversación “nueva” a partir del historial editado
         setThreadId(null);
@@ -418,7 +427,10 @@ export default function ChatbotModal({ onClose, visible = true }) {
     if (lastUserIdx === -1) return;
 
     const kept = messages.slice(0, lastUserIdx + 1);
-    const agentMessages = kept.map((m) => ({ role: m.role, content: m.content }));
+    const agentMessages = kept.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
 
     // Reset del thread: nuevo run, pero con el mismo historial “hasta el user”
     try {
@@ -438,45 +450,96 @@ export default function ChatbotModal({ onClose, visible = true }) {
     }
   };
 
-  // Click en sugerencia  manda ese texto como primer mensaje
-  const handleSuggestionClick = (suggestionText) => {
-    handleSendMessage(null, suggestionText);
+  // Función para formatear tamaño de archivo
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  // Manejar selección de archivos
+  const handleFilesSelected = (files) => {
+    setSelectedFiles((prev) => [...prev, ...files]);
+  };
+
+  // Remover archivo del preview
+  const handleRemoveFile = (index) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Enviar archivos
+  const handleSendFiles = async (files) => {
+    if (!files || files.length === 0) return;
+
+    // Crear mensajes de usuario para cada archivo
+    const fileMessages = files.map((file) => ({
+      id: `file-${Date.now()}-${Math.random()}`,
+      role: 'user',
+      type: 'file',
+      content: file.name,
+      fileInfo: {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        formattedSize: formatFileSize(file.size),
+      },
+      time: formatTime(),
+    }));
+
+    // Agregar mensajes de usuario
+    setMessages((prev) => [...prev, ...fileMessages]);
+
+    // Agregar mensaje hardcoded del asistente
+    const assistantMessage = {
+      id: `assistant-${Date.now()}`,
+      role: 'assistant',
+      content:
+        'Archivo recibido. Por el momento no es posible generar una respuesta.',
+      time: formatTime(),
+    };
+
+    setMessages((prev) => [...prev, assistantMessage]);
+
+    // Limpiar archivos seleccionados
+    setSelectedFiles([]);
   };
 
   return (
     <div className={`fixed inset-0 bg-transparent flex items-end justify-end p-4 z-50 ${visible ? '' : 'hidden'}`}>
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm h-[36rem] flex flex-col">
         {/* Header */}
-        <div className="bg-green-300 text-white p-4 rounded-t-lg flex justify-between items-center">
-          <div className="flex items-center gap-3">
+        <div className='bg-green-300 text-white p-4 rounded-t-lg flex justify-between items-center'>
+          <div className='flex items-center gap-3'>
             <img
-              src="https://f.fcdn.app/assets/commerce/shop.goland-group.com/968a_263c/public/web/favicon.ico"
-              alt="GoLand icon"
-              className="w-6 h-6"
+              src='https://f.fcdn.app/assets/commerce/shop.goland-group.com/968a_263c/public/web/favicon.ico'
+              alt='GoLand icon'
+              className='w-6 h-6'
             />
-            <div className="leading-tight text-black">
-              <div className="text-lg font-semibold">GOLAND Chat</div>
-              <div className="text-xs text-white flex items-center gap-2">
-                <span className="inline-block w-2 h-2 bg-green-500 rounded-full" />
-                <span className="text-black">online</span>
+            <div className='leading-tight text-black'>
+              <div className='text-lg font-semibold'>GOLAND Chat</div>
+              <div className='text-xs text-white flex items-center gap-2'>
+                <span className='inline-block w-2 h-2 bg-green-500 rounded-full' />
+                <span className='text-black'>online</span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className='flex items-center gap-2'>
             <button
               onClick={handleNewConversation}
-              className="flex items-center hover:bg-green-200 p-2 rounded transition-all duration-150 text-black cursor-pointer hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
-              aria-label="Nueva conversación"
-              title="Nueva conversación"
-              type="button"
+              className='flex items-center hover:bg-green-200 p-2 rounded transition-all duration-150 text-black cursor-pointer hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2'
+              aria-label='Nueva conversación'
+              title='Nueva conversación'
+              type='button'
             >
               <RotateCcw size={14} />
             </button>
             <button
               onClick={onClose}
-              className="hover:bg-green-700 p-1 rounded transition-colors text-black"
-              aria-label="Close Chatbot"
-              type="button"
+              className='hover:bg-green-700 p-1 rounded transition-colors text-black'
+              aria-label='Close Chatbot'
+              type='button'
             >
               ✕
             </button>
@@ -516,7 +579,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3">
+        <div className='flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3'>
           {messages.map((msg) => (
             <ChatMessage
               key={msg.id}
@@ -524,6 +587,8 @@ export default function ChatbotModal({ onClose, visible = true }) {
               type={msg.role === 'user' ? 'user' : 'bot'}
               text={msg.content}
               time={msg.time}
+              messageType={msg.type}
+              fileInfo={msg.fileInfo}
               feedback={msg.feedback}
               copied={copiedMessageId === msg.id}
               reloading={reloadingMessageId === msg.id}
@@ -558,7 +623,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
 
           {/* Sugerencias (solo si aún no hay mensajes del usuario) */}
           {!messages.some((m) => m.role === 'user') && (
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className='mt-2 flex flex-wrap gap-2'>
               {[
                 'Quiero info de GoLand Uruguay',
                 'Recomendame un pack para empezar',
@@ -566,9 +631,9 @@ export default function ChatbotModal({ onClose, visible = true }) {
               ].map((s) => (
                 <button
                   key={s}
-                  type="button"
+                  type='button'
                   onClick={() => sendText(s)}
-                  className="text-xs px-3 py-1 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors"
+                  className='text-xs px-3 py-1 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors'
                 >
                   {s}
                 </button>
@@ -581,12 +646,12 @@ export default function ChatbotModal({ onClose, visible = true }) {
 
         {/* Input */}
         {editingMessageId && (
-          <div className="px-4 pt-3 pb-1 text-xs text-gray-600 flex items-center justify-between">
+          <div className='px-4 pt-3 pb-1 text-xs text-gray-600 flex items-center justify-between'>
             <span>Editando mensaje…</span>
             <button
-              type="button"
+              type='button'
               onClick={handleCancelEdit}
-              className="text-gray-700 hover:text-black underline underline-offset-2"
+              className='text-gray-700 hover:text-black underline underline-offset-2'
             >
               Cancelar
             </button>
@@ -596,8 +661,12 @@ export default function ChatbotModal({ onClose, visible = true }) {
           input={input}
           setInput={setInput}
           onSendMessage={handleSendMessage}
+          onSendFiles={handleSendFiles}
           isLoading={isLoading}
           isTypingBot={runStatus === 'loading'}
+          selectedFiles={selectedFiles}
+          onFilesSelected={handleFilesSelected}
+          onRemoveFile={handleRemoveFile}
         />
       </div>
     </div>

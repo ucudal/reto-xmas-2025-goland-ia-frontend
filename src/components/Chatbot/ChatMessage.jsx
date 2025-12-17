@@ -1,11 +1,23 @@
 import React from 'react';
-import { RotateCcw, Copy, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react';
+import { RotateCcw, Copy, ThumbsUp, ThumbsDown, Pencil, File, FileText, Image, FileCode, FileSpreadsheet } from 'lucide-react';
+
+// Función para obtener icono según tipo de archivo
+function getFileIcon(fileType) {
+  if (!fileType) return File;
+  if (fileType.startsWith('image/')) return Image;
+  if (fileType.includes('pdf') || fileType.includes('document')) return FileText;
+  if (fileType.includes('spreadsheet') || fileType.includes('excel') || fileType.includes('csv')) return FileSpreadsheet;
+  if (fileType.includes('code') || fileType.includes('text')) return FileCode;
+  return File;
+}
 
 export default function ChatMessage({
   id,
   type,
   text,
   time,
+  messageType,
+  fileInfo,
   onCopy,
   onThumbsUp,
   onThumbsDown,
@@ -17,6 +29,7 @@ export default function ChatMessage({
   actionsDisabled,
 }) {
   const isUser = type === 'user';
+  const isFileMessage = messageType === 'file';
   const iconBtnBase =
     'p-1.5 rounded transition-all duration-150 cursor-pointer hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2';
   const iconBtnDisabled = 'opacity-40 cursor-not-allowed hover:scale-100';
@@ -49,7 +62,20 @@ export default function ChatMessage({
           </button>
 
           <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap' }}>
-            {text}
+            {isFileMessage && fileInfo ? (
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const FileIcon = getFileIcon(fileInfo.type);
+                  return <FileIcon size={20} className="flex-shrink-0" />;
+                })()}
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className="font-medium truncate">{fileInfo.name}</span>
+                  <span className="text-xs opacity-90">{fileInfo.formattedSize || fileInfo.size}</span>
+                </div>
+              </div>
+            ) : (
+              text
+            )}
           </div>
         </div>
       ) : (
