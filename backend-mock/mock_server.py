@@ -16,7 +16,9 @@ from ag_ui.core import (
     RunFinishedEvent,
     TextMessageStartEvent,
     TextMessageContentEvent,
-    TextMessageEndEvent
+    TextMessageEndEvent,
+    StepStartedEvent,
+    StepFinishedEvent
 )
 
 # Cargar variables de entorno (.env)
@@ -40,27 +42,27 @@ else:
 MOCK_RESPONSES = {
     "hola": {
         "keywords": ["hola", "buenos días", "buenas tardes", "buenas noches", "hi", "hello", "saludos"],
-        "response": "¡Hola! Soy el asistente de Goland. ¿En qué puedo ayudarte hoy?"
+        "response": "**¡Hola! Soy el asistente de Goland. ¿En qué puedo ayudarte hoy?**"
     },
     "productos": {
         "keywords": ["producto", "productos", "qué tienen", "qué venden", "catálogo", "qué ofrecen"],
-        "response": "Tenemos una amplia variedad de productos a base de cáñamo: semillas, aceites, proteínas y más. ¿Te interesa alguno en particular?"
+        "response": "**Tenemos una amplia variedad de productos a base de cáñamo: semillas, aceites, proteínas y más. ¿Te interesa alguno en particular?**"
     },
     "precio": {
         "keywords": ["precio", "precios", "cuánto cuesta", "costo", "valor", "tarifa"],
-        "response": "Los precios varían según el producto. Te recomiendo visitar nuestra tienda online en shop.goland-group.com para ver los precios actualizados."
+        "response": "**Los precios varían según el producto. Te recomiendo visitar nuestra tienda online en shop.goland-group.com para ver los precios actualizados.**"
     },
     "ingredientes": {
         "keywords": ["ingrediente", "ingredientes", "qué contiene", "de qué está hecho", "composición", "natural"],
-        "response": "Nuestros productos están hechos con ingredientes 100% naturales, sin conservantes artificiales, veganos y sin gluten. ¿Quieres saber más sobre algún producto específico?"
+        "response": "**Nuestros productos están hechos con ingredientes 100% naturales, sin conservantes artificiales, veganos y sin gluten. ¿Quieres saber más sobre algún producto específico?**"
     },
     "envio": {
         "keywords": ["envío", "envio", "entrega", "shipping", "delivery", "enviar", "cuánto tarda"],
-        "response": "Realizamos envíos a todo Uruguay. El tiempo de entrega depende de tu ubicación, generalmente entre 3 a 7 días hábiles."
+        "response": "**Realizamos envíos a todo Uruguay. El tiempo de entrega depende de tu ubicación, generalmente entre 3 a 7 días hábiles.**"
     },
     "default": {
         "keywords": [],
-        "response": "Gracias por tu consulta. Nuestro equipo está aquí para ayudarte. ¿Hay algo más en lo que pueda asistirte?"
+        "response": "**Gracias por tu consulta. Nuestro equipo está aquí para ayudarte. ¿Hay algo más en lo que pueda asistirte?**"
     }
 }
 
@@ -159,32 +161,49 @@ def generate_events(payload):
     run_id = str(uuid.uuid4())
     message_id = str(uuid.uuid4())
     
-    # Extraer historial de mensajes
-    # El frontend manda {role, content}
+    # IDs para los pasos
+    thinking_step = str(uuid.uuid4())
+    search_step = str(uuid.uuid4())
+    response_step = str(uuid.uuid4())
+
+    # Extraer historial
     messages = payload.get("messages", [])
     
-    # 1. Eventos iniciales
+    # 1. Inicio del Run
     yield RunStartedEvent(thread_id=thread_id, run_id=run_id)
+
+    # 2. Paso: Pensando (Simulado para UI feedback)
+    yield StepStartedEvent(step_id=thinking_step, stepName="reasoning")
+    time.sleep(0.5) # Pequeña pausa para que se vea el "Pensando..."
+    yield StepFinishedEvent(step_id=thinking_step, stepName="reasoning")
+
+    # 3. Paso: Buscando (Simulado para que se vea "Buscando información...")
+    yield StepStartedEvent(step_id=search_step, stepName="tool:mock_search")
+    time.sleep(0.5)
+    yield StepFinishedEvent(step_id=search_step, stepName="tool:mock_search")
+
+    # 4. Paso: Escribiendo (Generación de respuesta)
+    yield StepStartedEvent(step_id=response_step, stepName="response")
     yield TextMessageStartEvent(message_id=message_id, role="assistant")
 
-    # 2. Generar Contenido
+    # Generar Contenido
     if openai_client:
         # MODO AI
-        # Convertir mensajes al formato de OpenAI (filtrar si es necesario)
         openai_messages = []
         for m in messages:
             role = m.get("role", "user")
-            # Mapear roles si fuera necesario, ag-ui usa "user"/"assistant" que es compatible
-            openai_messages.append({"role": role, "content": m.get("content", "")})
+            content = m.get("content", "")
+            # Filtrar mensajes vacíos
+            if content:
+                openai_messages.append({"role": role, "content": content})
         
         # Stream de OpenAI
         for chunk_text in stream_openai_response(openai_messages):
-            if chunk_text and len(chunk_text) > 0: # Robust validation against empty strings
+            if chunk_text and len(chunk_text) > 0:
                 yield TextMessageContentEvent(message_id=message_id, delta=chunk_text)
             
     else:
         # MODO MOCK
-        # Obtener último mensaje del usuario
         user_message = ""
         for msg in reversed(messages):
             if msg.get("role") == "user":
@@ -193,16 +212,21 @@ def generate_events(payload):
         
         response_text = get_mock_response(user_message)
         
-        # Simular delay/typing
+        # Simular typing
         chunk_size = 5
         for i in range(0, len(response_text), chunk_size):
             chunk = response_text[i:i + chunk_size]
             yield TextMessageContentEvent(message_id=message_id, delta=chunk)
-            time.sleep(0.02) # Pequeño delay artificial
+            time.sleep(0.02) 
 
-    # 3. Eventos finales
+    # 5. Finalizar mensaje y paso
     yield TextMessageEndEvent(message_id=message_id)
+    yield StepFinishedEvent(step_id=response_step, stepName="response")
+
+    # 6. Fin del Run
     yield RunFinishedEvent(thread_id=thread_id, run_id=run_id)
+
+
 
 
 @app.route('/health', methods=['GET'])

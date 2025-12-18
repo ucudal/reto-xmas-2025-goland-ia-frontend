@@ -3,22 +3,25 @@ import { HttpAgent } from '@ag-ui/client';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 /**
- * @param {Object} params - Parámetros para ejecutar el agente
- * @param {string} params.threadId - ID del thread de conversación
- * @param {Array} params.messages - Array de mensajes en formato ag-ui
- * @param {Function} params.onThreadId - Callback cuando se obtiene el threadId
- * @param {Function} params.onMessagesChanged - Callback cuando cambian los mensajes (sincroniza con el SDK)
- * @param {Function} params.onRunFinished - Callback cuando termina el run
- * @param {Function} params.onRunError - Callback cuando hay un error
- * @returns {Promise<Object>} Resultado con newMessages del SDK
+ * @param {Object} params
+ * @param {string} params.threadId
+ * @param {Array} params.messages
+ * @param {Function} params.onThreadId
+ * @param {Function} params.onMessagesChanged
+ * @param {Function} params.onRunFinished
+ * @param {Function} params.onRunError
+ * @param {Function} params.onStepStarted
+ * @param {Function} params.onStepFinished
  */
-export async function runAgent({ 
-  threadId, 
-  messages, 
+export async function runAgent({
+  threadId,
+  messages,
   onThreadId,
   onMessagesChanged,
   onRunFinished,
-  onRunError
+  onRunError,
+  onStepStarted,
+  onStepFinished,
 }) {
   const agent = new HttpAgent({
     url: `${API_URL}/v1/agent`,
@@ -37,17 +40,33 @@ export async function runAgent({
       state: {},
     },
     {
+      // 🔹 RUN START
       onRunStartedEvent: ({ event }) => {
         if (event.threadId) {
           onThreadId?.(event.threadId);
         }
       },
+
+      // 🔹 STEPS (AG-UI CORE)
+      onStepStartedEvent: ({ event }) => {
+        onStepStarted?.(event);
+      },
+
+      onStepFinishedEvent: ({ event }) => {
+        onStepFinished?.(event);
+      },
+
+      // 🔹 MENSAJES
       onMessagesChanged: ({ messages: sdkMessages }) => {
         onMessagesChanged?.(sdkMessages);
       },
+
+      // 🔹 RUN FINISHED
       onRunFinishedEvent: ({ event, result: runResult }) => {
         onRunFinished?.(event, runResult);
       },
+
+      // 🔹 ERROR
       onRunErrorEvent: ({ event }) => {
         onRunError?.(event);
       },
@@ -60,4 +79,3 @@ export async function runAgent({
 export default {
   runAgent,
 };
-
