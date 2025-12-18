@@ -64,19 +64,36 @@ export default function ChatMessage({
 
           <div className={bubbleClass} style={{ whiteSpace: 'pre-wrap' }}>
             {isFileMessage && fileInfo ? (
-              <div className="flex items-center gap-3">
-                {(() => {
-                  const FileIcon = getFileIcon(fileInfo.type);
-                  return <FileIcon size={20} className="flex-shrink-0" />;
-                })()}
-                <div className="flex flex-col min-w-0 flex-1">
-                  <span className="font-medium truncate">{fileInfo.name}</span>
-                  <span className="text-xs opacity-90">{fileInfo.formattedSize || fileInfo.size}</span>
+              <div className="flex flex-col gap-2">
+                
+                {/* 🔹 PREVISUALIZACIÓN DE IMAGEN */}
+                {fileInfo.isImage && fileInfo.previewUrl && (
+                  <img
+                    src={fileInfo.previewUrl}
+                    alt={fileInfo.name}
+                    className="max-w-full rounded-lg border"
+                  />
+                )}
+
+                {/* 🔹 FILA DE ÍCONO + INFO */}
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const FileIcon = getFileIcon(fileInfo.type);
+                    return <FileIcon size={20} className="flex-shrink-0" />;
+                  })()}
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-medium truncate">{fileInfo.name}</span>
+                    <span className="text-xs opacity-90">
+                      {fileInfo.formattedSize || fileInfo.size}
+                    </span>
+                  </div>
                 </div>
+
               </div>
             ) : (
               text
             )}
+
           </div>
         </div>
       ) : (
