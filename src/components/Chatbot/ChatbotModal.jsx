@@ -250,18 +250,32 @@ export default function ChatbotModal({ onClose }) {
         return;
       }
 
+            // crear mensaje user
+      const userMessage = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: text,
+        time: formatTime(),
+      };
+
+      // renderizarlo inmediatamente
+      setMessages((prev) => [...prev, userMessage]);
+
+      // historial para el agente
       const agUIMessages = [
-        ...messages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
+        ...messages.map((m) => ({
+          role: m.role,
+          content: m.content,
         })),
-        {
-          role: 'user',
-          content: text,
-        },
+        { role: 'user', content: text },
       ];
 
-      await runAgentWithMessages({ messagesForAgent: agUIMessages, forceNewThread: false });
+      // correr agente
+      await runAgentWithMessages({
+        messagesForAgent: agUIMessages,
+        forceNewThread: false,
+      });
+
     } catch (err) {
       const errMsg = {
         id: `${Date.now()}-error`,
