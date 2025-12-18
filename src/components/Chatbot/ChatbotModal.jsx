@@ -537,7 +537,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
             </button>
             <button
               onClick={onClose}
-              className='hover:bg-green-700 p-1 rounded transition-colors text-black'
+              className='hover:bg-green-200 p-1 rounded transition-colors text-black'
               aria-label='Close Chatbot'
               type='button'
             >
