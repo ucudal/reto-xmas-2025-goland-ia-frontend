@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Header() {
     const [isOpen, setIsOpen] = useState(false);
@@ -7,9 +8,9 @@ export default function Header() {
         <nav id="navbar" className="navbar fixed-top fixed top-0 z-50 w-full flex flex-wrap items-start lg:items-center justify-between p-5 transition-all ease-in-out duration-500 h-auto bg-white lg:bg-white text-gray-900">
             <div className="container max-w-screen-xl mx-auto flex flex-col lg:flex-row flex-nowrap items-start lg:items-center justify-between h-full lg:h-auto">
                 <div className="w-full relative flex justify-between items-center lg:w-auto lg:static lg:block lg:justify-start flex-grow">
-                    <a href="/" className="nav-link text-sm font-bold leading-relaxed inline-block mr-4 py-2 whitespace-nowrap uppercase text-white">
+                    <Link to="/" className="nav-link text-sm font-bold leading-relaxed inline-block mr-4 py-2 whitespace-nowrap uppercase text-white">
                         <img id="nav-logo" src="https://goland-group.com/_nuxt/img/logo-full.30c60fd.png" alt="" className="h-6 md:h-10 w-auto transition-all ease-in-out duration-300" />
-                    </a>
+                    </Link>
                     <div className="cursor-pointer w-14 h-14 flex lg:hidden justify-center items-center relative z-10">
                         <button aria-label="Main Menu" className={`menu cursor-pointer w-10 h-7 md:w-14 md:h-14 z-10 ${isOpen ? 'opened' : 'closed'}`} onClick={() => setIsOpen(!isOpen)}>
                             <span></span> <span></span> <span></span>
@@ -25,25 +26,28 @@ export default function Header() {
                         <li className="nav-link nav-link-grow-up flex items-center justify-center lg:justify-start py-2 lg:py-0">
                             <a href="/hemp-food" className="nav-link btn-navlink px-4 flex items-center text-lg lg:text-sm uppercase font-bold text-verde rounded-full py-1">Hemp Food</a>
                         </li>
-                        <li className="megamenu-link-2 hoverable hidden lg:block text-verde transition-all ease-in-out duration-500 delay-100 overflow-hidden group">
-                            <a href="/productos" className="megamenu-link relative block py-6 px-4 lg:py-2 text-lg lg:text-sm font-bold uppercase transition-all ease-in-out rounded-full overflow-hidden">Productos</a>
-                            {/* Mega Menu Dropdown */}
-                            <div className="p-6 mega-menu mb-16 sm:mb-0 shadow-xl bg-white transition-all ease-in-out duration-500 delay-100 absolute left-0 right-0 hidden group-hover:block z-50 top-full">
-                                <div className="container mx-auto max-w-screen-2xl w-full flex flex-wrap justify-center transition-all ease-in-out duration-500">
-                                    {/* Items would go here, simplified for now as per original code structure */}
-                                    <ul className="w-full sm:w-1/2 lg:w-1/5 p-1 relative flex flex-col items-center border-verde border-b sm:border-r lg:border-b-0">
-                                        <a href="/productos/HempButter" className="w-full h-full px-4 pb-6 pt-6 lg:pt-3 flex flex-col items-center bg-white hover:bg-verde transition-all ease-in-out duration-500 text-verde hover:text-white rounded-lg">
-                                            <div className="flex justify-center h-36 w-auto items-center"><img src="https://storage.googleapis.com/img-goland/goland/crema-mani-front-ok.png" alt="" className="object-contain object-center w-auto h-full mx-auto" /></div>
-                                            <h5 className="font-bold text-xl uppercase text-center mb-2">Crema de Maní & Hemp Protein</h5>
-                                        </a>
-                                    </ul>
-                                    <ul className="w-full sm:w-1/2 lg:w-1/5 p-1 relative flex flex-col items-center border-verde border-b sm:border-r lg:border-b-0">
-                                        <a href="/productos/HempCoffee" className="w-full h-full px-4 pb-6 pt-6 lg:pt-3 flex flex-col items-center bg-white hover:bg-verde transition-all ease-in-out duration-500 text-verde hover:text-white rounded-lg">
-                                            <div className="flex justify-center h-36 w-auto items-center"><img src="https://storage.googleapis.com/img-goland/goland/coffee-front.png" alt="" className="object-contain object-center w-auto h-full mx-auto" /></div>
-                                            <h5 className="font-bold text-xl uppercase text-center mb-2">Hemp Coffee</h5>
-                                        </a>
-                                    </ul>
-                                    {/* ... other menu items ... */}
+                        <li className="megamenu-link-2 hoverable hidden lg:block text-verde transition-all ease-in-out duration-500 group">
+                            <Link to="/productos" className="megamenu-link relative block py-6 px-4 lg:py-2 text-lg lg:text-sm font-bold uppercase transition-all ease-in-out rounded-full overflow-hidden">Productos</Link>
+                            {/* Mega Menu Dropdown - Added delay and safer transition */}
+                            {/* Mega Menu Dropdown - Wrapped for safe hover bridge */}
+                            <div className="mega-menu lg:absolute left-0 right-0 z-50 top-full pt-10 -mt-10 invisible opacity-0 group-hover:visible group-hover:opacity-100 group-hover:delay-0 transition-all ease-in-out duration-300 delay-300">
+                                <div className="bg-white shadow-xl p-6">
+                                    <div className="container mx-auto max-w-screen-2xl w-full flex flex-wrap justify-center transition-all ease-in-out duration-500">
+                                        {/* Items would go here, simplified for now as per original code structure */}
+                                        <ul className="w-full sm:w-1/2 lg:w-1/5 p-1 relative flex flex-col items-center border-verde border-b sm:border-r lg:border-b-0">
+                                            <a href="/productos/HempButter" className="w-full h-full px-4 pb-6 pt-6 lg:pt-3 flex flex-col items-center bg-white hover:bg-verde transition-all ease-in-out duration-500 text-verde hover:text-white rounded-lg">
+                                                <div className="flex justify-center h-36 w-auto items-center"><img src="https://storage.googleapis.com/img-goland/goland/crema-mani-front-ok.png" alt="" className="object-contain object-center w-auto h-full mx-auto" /></div>
+                                                <h5 className="font-bold text-xl uppercase text-center mb-2">Crema de Maní & Hemp Protein</h5>
+                                            </a>
+                                        </ul>
+                                        <ul className="w-full sm:w-1/2 lg:w-1/5 p-1 relative flex flex-col items-center border-verde border-b sm:border-r lg:border-b-0">
+                                            <a href="/productos/HempCoffee" className="w-full h-full px-4 pb-6 pt-6 lg:pt-3 flex flex-col items-center bg-white hover:bg-verde transition-all ease-in-out duration-500 text-verde hover:text-white rounded-lg">
+                                                <div className="flex justify-center h-36 w-auto items-center"><img src="https://storage.googleapis.com/img-goland/goland/coffee-front.png" alt="" className="object-contain object-center w-auto h-full mx-auto" /></div>
+                                                <h5 className="font-bold text-xl uppercase text-center mb-2">Hemp Coffee</h5>
+                                            </a>
+                                        </ul>
+                                        {/* ... other menu items ... */}
+                                    </div>
                                 </div>
                             </div>
                         </li>
