@@ -165,6 +165,30 @@ export default function ChatbotModal({ onClose, visible = true }) {
     }
   };
 
+    const handleSendAudio = (blob, duration) => {
+    const url = URL.createObjectURL(blob);
+
+    const userMsg = {
+      id: `audio-${Date.now()}`,
+      role: 'user',
+      type: 'audio',
+      fileInfo: {
+        url,
+        duration,
+      },
+      time: formatTime(),
+    };
+
+    const botMsg = {
+      id: `assistant-${Date.now()}`,
+      role: 'assistant',
+      content:
+        'Audio recibido. Por el momento no es posible generar una respuesta.',
+      time: formatTime(),
+    };
+
+    setMessages(prev => [...prev, userMsg, botMsg]);
+  };
   const runAgentWithMessages = async ({ messagesForAgent, forceNewThread = false }) => {
     try {
       cancelRunRef.current = false;
@@ -671,6 +695,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
           setInput={setInput}
           onSendMessage={handleSendMessage}
           onSendFiles={handleSendFiles}
+          onSendAudio={handleSendAudio}
           isLoading={isLoading}
           isTypingBot={runStatus === 'loading'}
           selectedFiles={selectedFiles}

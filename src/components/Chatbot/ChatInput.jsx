@@ -1,5 +1,59 @@
 import React, { useRef } from 'react';
-import { Send, Square, Paperclip, X, File, FileText, Image, FileCode, FileSpreadsheet } from 'lucide-react';
+import { Send, Square, Paperclip, X, File, FileText, Image, FileCode, FileSpreadsheet, Mic, StopCircle, Trash2 } from 'lucide-react';
+
+
+function useAudioRecorder() {
+  const mediaRecorderRef = React.useRef(null);
+  const chunksRef = React.useRef([]);
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [audioBlob, setAudioBlob] = React.useState(null);
+  const [duration, setDuration] = React.useState(0);
+  const timerRef = React.useRef(null);
+
+  const start = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert("Tu navegador no soporta grabación de audio");
+      return;
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorderRef.current = mediaRecorder;
+    chunksRef.current = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+      setAudioBlob(blob);
+      stream.getTracks().forEach(t => t.stop());
+    };
+
+    mediaRecorder.start();
+    setIsRecording(true);
+    setDuration(0);
+
+    timerRef.current = setInterval(() => {
+      setDuration(d => d + 1);
+    }, 1000);
+  };
+
+  const stop = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+    clearInterval(timerRef.current);
+  };
+
+  const reset = () => {
+    setAudioBlob(null);
+    setDuration(0);
+  };
+
+  return { isRecording, audioBlob, duration, start, stop, reset };
+}
 
 // Función para formatear tamaño de archivo
 function formatFileSize(bytes) {
@@ -25,6 +79,7 @@ export default function ChatInput({
   setInput,
   onSendMessage,
   onSendFiles,
+  onSendAudio,
   isLoading,
   isTypingBot,
   selectedFiles,
@@ -32,15 +87,43 @@ export default function ChatInput({
   onRemoveFile,
 }) {
   const fileInputRef = useRef(null);
+  const {
+    isRecording,
+    audioBlob,
+    duration,
+    start,
+    stop,
+    reset
+  } = useAudioRecorder();
+
+  const mode =
+    isRecording ? 'recording' :
+      audioBlob ? 'preview' :
+        'idle';
+
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // 1️⃣ PRIORIDAD: audio
+    if (mode === 'preview' && audioBlob) {
+      onSendAudio?.(audioBlob, duration);
+      reset();
+      return;
+    }
+
+    // 2️⃣ Archivos
     if (selectedFiles && selectedFiles.length > 0) {
       onSendFiles(selectedFiles);
-    } else if (input.trim()) {
-      onSendMessage(e);
+      return;
+    }
+
+    // 3️⃣ Texto
+    if (input.trim()) {
+      onSendMessage(input);
     }
   };
+
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
@@ -99,16 +182,41 @@ export default function ChatInput({
           onChange={handleFileSelect}
           aria-label='Seleccionar archivos'
         />
-        
-        <button
-          type='button'
-          onClick={handleAttachClick}
-          disabled={isLoading && !isTypingBot}
-          className='flex items-center justify-center p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
-          aria-label='Adjuntar archivo'
-        >
-          <Paperclip size={20} />
-        </button>
+
+        {mode === 'idle' && (
+          <>
+            <button type="button" onClick={start} className="p-2 rounded-full">
+              <Mic size={20} />
+            </button>
+
+            {/* input + attach + send */}
+          </>
+        )}
+        {mode === 'recording' && (
+          <div className="flex gap-4 w-full justify-center">
+            <span>Grabando… {duration}s</span>
+            <button type="button" onClick={stop} className="bg-red-500 p-2 rounded-full">
+              <StopCircle size={20} />
+            </button>
+          </div>
+        )}
+        {mode === 'preview' && (
+          <div className="flex gap-3 w-full">
+            <audio src={URL.createObjectURL(audioBlob)} controls className="flex-1" />
+
+            <button type="button" onClick={reset}>
+              <Trash2 size={18} />
+            </button>
+
+            <button type="submit" className="bg-verde px-3 py-2 rounded-full">
+              <Send size={20} />
+            </button>
+          </div>
+        )}
+
+
+
+{mode === 'idle' && (
 
         <input
           type='text'
@@ -120,7 +228,7 @@ export default function ChatInput({
           disabled={isLoading && !isTypingBot}
           className='flex-1 border border-gray-300 rounded-full px-3 py-2 focus:outline-none focus:ring-2 focus:ring-verde disabled:opacity-50'
         />
-
+        )}
         {isTypingBot ? (
           // 🛑 BOTÓN STOP
           <button
