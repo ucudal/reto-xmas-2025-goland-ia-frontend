@@ -3,6 +3,7 @@ import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import AgUIService from '../../services/AgUIService';
 import { RotateCcw } from 'lucide-react';
+import { getPageContext } from '../../context/PageContext';
 
 const STORAGE_KEY = 'goland-chat-conversation';
 const SEEN_KEY = 'goland-chat-seen';
@@ -173,9 +174,14 @@ export default function ChatbotModal({ onClose, visible = true }) {
       setAgentStatus('thinking');
       setIsLoading(true);
 
+      //se carga el contexto de la página
+      const ctx = getPageContext();
+
       await AgUIService.runAgent({
         threadId: forceNewThread ? null : threadId,
         messages: messagesForAgent,
+        //pasamos el contexto
+        context: ctx,      
 
         onThreadId: (newThreadId) => {
           // Si forzamos thread nuevo, siempre actualizamos. Si no, solo si todavía es null.
