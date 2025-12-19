@@ -133,11 +133,37 @@ def get_mock_response(user_message):
     return MOCK_RESPONSES["default"]["response"]
 
 
-def stream_openai_response(messages_history):
+def stream_openai_response(messages_history, page_context=None):
     """Generador que consume la API de OpenAI"""
     try:
+        # Construir el prompt del sistema con contexto de página si está disponible
+        system_content = PRODUCT_CONTEXT
+        if page_context:
+            context_text = ""
+            if isinstance(page_context, dict):
+                # Verificar si hay información útil en el contexto
+                has_url = page_context.get("url") and page_context.get("url") != ""
+                has_title = page_context.get("title") and page_context.get("title") != ""
+                has_content = page_context.get("content") and page_context.get("content") != ""
+                
+                if has_url or has_title or has_content:
+                    context_text += f"\n\nCONTEXTO DE LA PÁGINA ACTUAL:\n"
+                    if has_url:
+                        context_text += f"- URL: {page_context.get('url', '')}\n"
+                    if has_title:
+                        context_text += f"- Título: {page_context.get('title', '')}\n"
+                    if has_content:
+                        context_text += f"- Contenido:\n{page_context.get('content', '')}\n"
+            elif isinstance(page_context, list) and len(page_context) > 0:
+                # Si viene como array, convertir a texto
+                context_text = "\n\nCONTEXTO ADICIONAL:\n" + "\n".join(str(item) for item in page_context)
+            
+            if context_text:
+                system_content += context_text
+                print(f"✅ Contexto de página agregado al prompt del sistema")
+        
         # Preparar mensajes con el System Prompt
-        system_msg = {"role": "system", "content": PRODUCT_CONTEXT}
+        system_msg = {"role": "system", "content": system_content}
         full_messages = [system_msg] + messages_history
 
         stream = openai_client.chat.completions.create(
@@ -167,8 +193,34 @@ def generate_events(payload):
     search_step = str(uuid.uuid4())
     response_step = str(uuid.uuid4())
 
-    # Extraer historial
+    # Extraer historial y contexto
     messages = payload.get("messages", [])
+    
+    # El SDK envía el contexto en el objeto de configuración del run
+    # El contexto puede venir como objeto {url, title, content} o como array
+    context = None
+    
+    # Intentar obtenerlo del payload directamente
+    if "context" in payload:
+        context = payload.get("context")
+    # Si no está en el nivel superior, puede estar en el objeto de configuración
+    elif "config" in payload and isinstance(payload["config"], dict):
+        context = payload["config"].get("context")
+    
+    # Debug: mostrar contexto recibido
+    if context:
+        # Si es un array vacío, no hay contexto
+        if isinstance(context, list) and len(context) == 0:
+            context = None
+        # Si es un objeto pero está vacío, no hay contexto
+        elif isinstance(context, dict) and not any(context.values()):
+            context = None
+    
+    if context:
+        print(f"📄 Contexto recibido del frontend: {context}")
+        print(f"📄 Tipo de contexto: {type(context)}")
+    else:
+        print("ℹ️ No hay contexto de página (página genérica o sin información)")
     
     # 1. Inicio del Run
     yield RunStartedEvent(thread_id=thread_id, run_id=run_id)
@@ -198,8 +250,8 @@ def generate_events(payload):
             if content:
                 openai_messages.append({"role": role, "content": content})
         
-        # Stream de OpenAI
-        for chunk_text in stream_openai_response(openai_messages):
+        # Stream de OpenAI con contexto de página
+        for chunk_text in stream_openai_response(openai_messages, page_context=context):
             if chunk_text and len(chunk_text) > 0:
                 yield TextMessageContentEvent(message_id=message_id, delta=chunk_text)
             

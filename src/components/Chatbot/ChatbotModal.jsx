@@ -208,14 +208,33 @@ export default function ChatbotModal({ onClose, visible = true }) {
       setAgentStatus('thinking');
       setIsLoading(true);
 
-      //se carga el contexto de la página
+      //se carga el contexto de la página (siempre obtiene el contexto actual)
       const ctx = getPageContext();
+      
+      // Solo enviar contexto si tiene información útil
+      const hasValidContext = ctx && (
+        (ctx.url && ctx.url !== '') || 
+        (ctx.title && ctx.title !== '') || 
+        (ctx.content && ctx.content !== '')
+      );
+      
+      // Debug: mostrar contexto que se envía
+      if (hasValidContext) {
+        console.log('📄 Contexto de página enviado al backend:', {
+          url: ctx.url,
+          title: ctx.title?.substring(0, 50) + '...',
+          contentLength: ctx.content?.length || 0,
+          contentPreview: ctx.content?.substring(0, 100) + '...'
+        });
+      } else {
+        console.log('ℹ️ No hay contexto de página disponible (página genérica)');
+      }
 
       await AgUIService.runAgent({
         threadId: forceNewThread ? null : threadId,
         messages: messagesForAgent,
-        //pasamos el contexto
-        context: ctx,      
+        //pasamos el contexto solo si tiene información útil
+        context: hasValidContext ? ctx : [],      
 
         onThreadId: (newThreadId) => {
           // Si forzamos thread nuevo, siempre actualizamos. Si no, solo si todavía es null.
