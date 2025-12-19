@@ -6,6 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
  * @param {Object} params
  * @param {string} params.threadId
  * @param {Array} params.messages
+ * @param {Array|Object} params.context
  * @param {Function} params.onThreadId
  * @param {Function} params.onMessagesChanged
  * @param {Function} params.onRunFinished
@@ -16,6 +17,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 export async function runAgent({
   threadId,
   messages,
+  context = [],
   onThreadId,
   onMessagesChanged,
   onRunFinished,
@@ -35,7 +37,7 @@ export async function runAgent({
   const result = await agent.runAgent(
     {
       tools: [],
-      context: [],
+      context: context || [],
       forwardedProps: {},
       state: {},
     },
