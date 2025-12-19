@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Send, Square, Paperclip, X, File, FileText, Image, FileCode, FileSpreadsheet } from 'lucide-react';
+import { Send, Square, Paperclip, X, File, FileText, Image, FileCode, FileSpreadsheet, Mic, StopCircle, Trash2 } from 'lucide-react';
 
 // Función para formatear tamaño de archivo
 function formatFileSize(bytes) {
@@ -25,6 +25,7 @@ export default function ChatInput({
   setInput,
   onSendMessage,
   onSendFiles,
+  onSendAudio,
   isLoading,
   isTypingBot,
   selectedFiles,
@@ -33,14 +34,43 @@ export default function ChatInput({
 }) {
   const fileInputRef = useRef(null);
 
+  const {
+    isRecording,
+    audioBlob,
+    duration,
+    start,
+    stop,
+    reset
+  } = useAudioRecorder();
+
+  const audioMode =
+    isRecording ? 'recording' :
+      audioBlob ? 'preview' :
+        'idle';
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (selectedFiles && selectedFiles.length > 0) {
+
+    if (audioMode === 'preview') {
+      onSendAudio({
+        blob: audioBlob,
+        duration,
+      });
+      reset();
+      return;
+    }
+
+
+    if (selectedFiles?.length) {
       onSendFiles(selectedFiles);
-    } else if (input.trim()) {
+      return;
+    }
+
+    if (input.trim()) {
       onSendMessage(e);
     }
   };
+
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
@@ -56,6 +86,56 @@ export default function ChatInput({
   const handleAttachClick = () => {
     fileInputRef.current?.click();
   };
+
+  function useAudioRecorder() {
+    const mediaRecorderRef = React.useRef(null);
+    const chunksRef = React.useRef([]);
+    const [isRecording, setIsRecording] = React.useState(false);
+    const [audioBlob, setAudioBlob] = React.useState(null);
+    const [duration, setDuration] = React.useState(0);
+    const timerRef = React.useRef(null);
+
+    const start = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size) chunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        stream.getTracks().forEach(t => t.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setDuration(0);
+
+      timerRef.current = setInterval(() => {
+        setDuration(d => d + 1);
+      }, 1000);
+    };
+
+    const stop = () => {
+      mediaRecorderRef.current?.stop();
+      clearInterval(timerRef.current);
+      setIsRecording(false);
+    };
+
+    const reset = () => {
+      setAudioBlob(null);
+      setDuration(0);
+    };
+
+    return { isRecording, audioBlob, duration, start, stop, reset };
+  }
+
+
 
   return (
     <div className='border-t'>
@@ -90,58 +170,93 @@ export default function ChatInput({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className='p-4 flex gap-2'>
+      <form onSubmit={handleSubmit} className='p-4 flex gap-2 items-center w-full'>
+        {/* INPUT FILE */}
         <input
           ref={fileInputRef}
           type='file'
           multiple
           className='hidden'
           onChange={handleFileSelect}
-          aria-label='Seleccionar archivos'
-        />
-        
-        <button
-          type='button'
-          onClick={handleAttachClick}
-          disabled={isLoading && !isTypingBot}
-          className='flex items-center justify-center p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
-          aria-label='Adjuntar archivo'
-        >
-          <Paperclip size={20} />
-        </button>
-
-        <input
-          type='text'
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={
-            isTypingBot ? 'El bot está respondiendo...' : 'Escribe tu mensaje...'
-          }
-          disabled={isLoading && !isTypingBot}
-          className='flex-1 border border-gray-300 rounded-full px-3 py-2 focus:outline-none focus:ring-2 focus:ring-verde disabled:opacity-50'
         />
 
-        {isTypingBot ? (
-          // 🛑 BOTÓN STOP
-          <button
-            type='submit'
-            className='bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-full transition-colors flex items-center justify-center'
-            aria-label='Detener respuesta'
-          >
-            <Square size={18} />
-          </button>
-        ) : (
-          // ✉️ BOTÓN ENVIAR
-          <button
-            type='submit'
-            disabled={isLoading || (!input.trim() && (!selectedFiles || selectedFiles.length === 0))}
-            className='bg-verde hover:bg-green-600 text-white px-3 py-2 rounded-full transition-colors disabled:opacity-50 flex items-center justify-center'
-            aria-label='Enviar mensaje'
-          >
-            <Send size={20} />
-          </button>
+        {audioMode === 'idle' && (
+          <>
+            {/* MIC */}
+            <button
+              type='button'
+              onClick={start}
+              className='p-2 text-gray-600 hover:bg-gray-100 rounded-full'
+              aria-label='Grabar audio'
+            >
+              <Mic size={20} />
+            </button>
+
+            {/* ATTACH */}
+            <button
+              type='button'
+              onClick={handleAttachClick}
+              disabled={isLoading && !isTypingBot}
+              className='p-2 text-gray-600 hover:bg-gray-100 rounded-full disabled:opacity-50'
+            >
+              <Paperclip size={20} />
+            </button>
+
+            {/* INPUT TEXTO */}
+            <input
+              type='text'
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={isLoading && !isTypingBot}
+              placeholder={isTypingBot ? 'El bot está respondiendo...' : 'Escribe tu mensaje...'}
+              className='flex-1 border border-gray-300 rounded-full px-3 py-2'
+            />
+
+            {/* SEND / STOP */}
+            {isTypingBot ? (
+              <button type='submit' className='bg-red-500 text-white px-3 py-2 rounded-full'>
+                <Square size={18} />
+              </button>
+            ) : (
+              <button
+                type='submit'
+                disabled={!input.trim() && !selectedFiles?.length}
+                className='bg-verde text-white px-3 py-2 rounded-full disabled:opacity-50'
+              >
+                <Send size={20} />
+              </button>
+            )}
+          </>
+        )}
+
+        {audioMode === 'recording' && (
+          <div className='flex items-center justify-center gap-4 w-full'>
+            <span className='text-sm'>Grabando… {duration}s</span>
+            <button
+              type='button'
+              onClick={stop}
+              className='p-2 bg-red-500 text-white rounded-full'
+            >
+              <StopCircle size={20} />
+            </button>
+          </div>
+        )}
+
+        {audioMode === 'preview' && (
+          <div className='flex items-center gap-3 w-full'>
+            <audio src={URL.createObjectURL(audioBlob)} controls className='flex-1' />
+
+            <button type='button' onClick={reset} className='p-2 hover:bg-gray-100 rounded-full'>
+              <Trash2 size={18} />
+            </button>
+
+            <button type='submit' className='bg-verde text-white px-3 py-2 rounded-full'>
+              <Send size={20} />
+            </button>
+          </div>
         )}
       </form>
+
     </div>
   );
 }
