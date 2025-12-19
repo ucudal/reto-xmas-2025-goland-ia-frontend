@@ -76,8 +76,9 @@ REGLAS DE COMPORTAMIENTO (GUARDRAILS):
 2. NO respondas preguntas de cultura general, matemáticas, programación, política o competencia, a menos que se relacione directamente con el cáñamo.
 3. Mantén un tono profesional, cercano y enfocado en la venta y soporte.
 4. Si la información NO está en los documentos ni en tu conocimiento base, NO inventes. Indica al usuario que puede buscar ese dato oficial en https://goland-group.com/ o escribir a contacto.
+5. SIEMPRE responde usando formato Markdown para mejorar la legibilidad: usa **negritas** para énfasis, listas con `-` o `*`, y `código` cuando sea relevante.
 
-Responde de manera amable, concisa y profesional.
+Responde de manera amable, concisa y profesional usando Markdown.
 
 INFORMACIÓN DE PRODUCTOS BASE:
 1. Crema de Maní & Hemp Protein: Snack saludable, proteína vegetal, fibra. Ideal untar o batidos.
@@ -140,7 +141,7 @@ def stream_openai_response(messages_history):
         full_messages = [system_msg] + messages_history
 
         stream = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo", # O "gpt-4" si tienes acceso y prefieres
+            model="gpt-4.1-mini", # O "gpt-4" si tienes acceso y prefieres
             messages=full_messages,
             stream=True
         )
