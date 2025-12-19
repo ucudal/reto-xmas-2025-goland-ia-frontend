@@ -53,7 +53,8 @@ function markAsSeen(msgs) {
   try {
     const count = (msgs || []).filter((m) => m.role === 'assistant').length;
     localStorage.setItem(SEEN_KEY, JSON.stringify({ count }));
-  } catch {
+  } catch (e) {
+    console.error('[Chatbot][markAsSeen] Error saving seen messages to localStorage:', e);
   }
 }
 
@@ -123,11 +124,19 @@ export default function ChatbotModal({ onClose, visible = true }) {
   });
 
   const handleNewConversation = () => {
+    
+    // Liberar URLs de previews de imágenes
+    messages.forEach((m) => {
+      if (m.fileInfo?.previewUrl) {
+        URL.revokeObjectURL(m.fileInfo.previewUrl);
+      }
+    });
+    
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch (error) {
       console.error('Error clearing conversation from storage:', error);
-    }
+    }   
 
     const fresh = getWelcomeConversation();
     setIsLoading(false);
@@ -508,7 +517,9 @@ export default function ChatbotModal({ onClose, visible = true }) {
     if (!files || files.length === 0) return;
 
     // Crear mensajes de usuario para cada archivo
-    const fileMessages = files.map((file) => ({
+    const fileMessages = files.map((file) => {
+    const isImage = file.type.startsWith('image/');
+    return {
       id: `file-${Date.now()}-${Math.random()}`,
       role: 'user',
       type: 'file',
@@ -518,9 +529,12 @@ export default function ChatbotModal({ onClose, visible = true }) {
         size: file.size,
         type: file.type,
         formattedSize: formatFileSize(file.size),
+        isImage,
+        previewUrl: isImage ? URL.createObjectURL(file) : null,
       },
       time: formatTime(),
-    }));
+    };
+  });
 
     // Agregar mensajes de usuario
     setMessages((prev) => [...prev, ...fileMessages]);
