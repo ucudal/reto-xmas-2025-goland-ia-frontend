@@ -4,6 +4,29 @@ import AOS from 'aos';
 import 'aos/dist/aos.css';
 import Header from './Header';
 import Footer from './Footer';
+import { setPageContext } from '../../context/PageContext';
+
+//cargamos la informacion del producto en formato texto para el contexto que lugo usa el chatbot
+function buildProductContent(productId, product) {
+  if (!product) return '';
+
+  const lines = [];
+  lines.push(`Página: Detalle de producto`);
+  lines.push(`Producto: ${product.title || productId}`);
+  if (product.subtitle) lines.push(`Subtítulo: ${product.subtitle}`);
+  if (product.description) lines.push(`Descripción: ${product.description}`);
+  if (product.whyUnique) lines.push(`Por qué es único: ${product.whyUnique}`);
+  if (product.usage) lines.push(`Recomendación de uso: ${product.usage}`);
+
+  if (Array.isArray(product.features) && product.features.length > 0) {
+    lines.push(`Beneficios/Características:`);
+    product.features.slice(0, 12).forEach((f) => {
+      lines.push(`- ${f.title}: ${f.text}`);
+    });
+  }
+
+  return lines.join('\n');
+}
 
 const productsData = {
     HempButter: {
@@ -71,8 +94,17 @@ export default function ProductDetailPage() {
             duration: 1000,
             once: true,
         });
-        window.scrollTo(0, 0); // Scroll to top on navigation
-    }, [productId]);
+        window.scrollTo(0, 0); // Scroll to top on 
+        
+        const ctx = {
+            url: `/productos/${productId}`,
+            title: `Detalle de producto - ${product?.title || productId}`,
+            content: buildProductContent(productId, product),
+         };
+
+        setPageContext(ctx);
+
+    }, [productId, product]);
 
     if (!product) {
         return (
