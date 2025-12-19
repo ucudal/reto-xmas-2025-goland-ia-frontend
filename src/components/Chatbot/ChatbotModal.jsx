@@ -165,7 +165,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
     }
   };
 
-    const handleSendAudio = (blob, duration) => {
+  const handleSendAudio = ({ blob, duration }) => {
     const url = URL.createObjectURL(blob);
 
     const userMsg = {
@@ -189,6 +189,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
 
     setMessages(prev => [...prev, userMsg, botMsg]);
   };
+
   const runAgentWithMessages = async ({ messagesForAgent, forceNewThread = false }) => {
     try {
       cancelRunRef.current = false;
@@ -356,7 +357,7 @@ export default function ChatbotModal({ onClose, visible = true }) {
         return;
       }
 
-            // crear mensaje user
+      // crear mensaje user
       const userMessage = {
         id: crypto.randomUUID(),
         role: 'user',
