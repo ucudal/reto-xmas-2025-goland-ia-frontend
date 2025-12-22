@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: goland-ia
+  labels:
+    name: goland-ia
+    app: goland-ia-frontend
+
